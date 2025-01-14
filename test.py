@@ -434,8 +434,6 @@ class LinkedListVisualizer(DataStructureVisualizer[Node]):
             
             if prev_cell:
                 prev_cell.connect_to(cell)
-                # Override the default curved arrows in the renderer
-                self.renderer.draw_connection(prev_cell, cell, self.connector_style, curved=False)
             
             cells.append(cell)
             prev_cell = cell
@@ -449,6 +447,32 @@ class LinkedListVisualizer(DataStructureVisualizer[Node]):
         if operation_name not in self.operations:
             raise ValueError(f"Unknown operation: {operation_name}")
         return self.operations[operation_name].animate(self, *args, **kwargs)
+
+    def draw_structure(self, data_structure: Node, highlighted_elements: Optional[List[Any]] = None) -> None:
+        """Override draw_structure to use straight arrows"""
+        self.renderer.clear_screen()
+        
+        # Create or update cells
+        self.cells = self.create_cells(data_structure)
+        
+        # Update highlighting
+        if highlighted_elements:
+            for cell in self.cells:
+                cell.highlighted = cell.value in highlighted_elements
+        
+        # Draw cells and their connections
+        for i in range(len(self.cells) - 1):  # Only draw connection to next cell
+            cell = self.cells[i]
+            next_cell = self.cells[i + 1]
+            self.renderer.draw_cell(cell, self.element_style)
+            self.renderer.draw_connection(cell, next_cell, self.connector_style, curved=False)
+            
+        # Draw the last cell (which has no forward connection)
+        if self.cells:
+            self.renderer.draw_cell(self.cells[-1], self.element_style)
+        
+        self.renderer.update_display()
+        self.video_writer.save_frame(self.renderer.screen)
 
 # Example usage
 if __name__ == "__main__":
