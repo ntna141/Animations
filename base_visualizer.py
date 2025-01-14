@@ -233,8 +233,10 @@ class DataStructureVisualizer(ABC, Generic[T]):
     
     def save_frame(self, hold_time: float = 0) -> None:
         """Save the current frame, optionally holding it for the specified duration"""
-        # Save just one frame for each state, no need for multiple frames during hold time
-        self.video_writer.save_frame(self.renderer.screen)
+        # Save the frame for the duration specified by hold_time
+        frames = int(hold_time * 30)  # Assuming 30fps
+        for _ in range(frames):
+            self.video_writer.save_frame(self.renderer.screen)
 
     @abstractmethod
     def create_cells(self, data_structure: T) -> List[Cell]:

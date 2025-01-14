@@ -16,14 +16,14 @@ if __name__ == "__main__":
     head.next.next.next = Node(7)
     
     # Initial state
-    visualizer.draw_structure(head)
+    visualizer.draw_structure(head, hold_time=2)
     
     # Insert 4 at position 2
-    head = visualizer.animate_operation("insert", head, 4, 2)
+    head = visualizer.animate_operation("insert", head, 4, 2, hold_time=2)
     
     # Delete node at position 1
-    head = visualizer.animate_operation("delete", head, 1)
+    head = visualizer.animate_operation("delete", head, 1, hold_time=2)
     
-    # Create video - each frame will show for 1 second
-    visualizer.video_writer.create_video(fps=1)
+    # Create video - each frame will show for the correct duration
+    visualizer.video_writer.create_video(fps=30)
     visualizer.cleanup()
