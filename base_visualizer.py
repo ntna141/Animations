@@ -64,13 +64,41 @@ class Cell:
         self.connections.discard(other)
         other.connections.discard(self)
 
+class VideoWriter:
+    """Handles saving frames and creating videos"""
+    def __init__(self, output_dir: str = "frames"):
+        self.frame_dir = output_dir
+        self.frame_count = 0
+        os.makedirs(output_dir, exist_ok=True)
+    
+    def save_frame(self, screen):
+        pygame.image.save(screen, f"{self.frame_dir}/frame_{self.frame_count:04d}.png")
+        self.frame_count += 1
+    
+    def create_video(self, output_filename: str = "animation.mp4", fps: int = 30):
+        frames = sorted(glob.glob(f"{self.frame_dir}/frame_*.png"))
+        if not frames:
+            print("No frames found!")
+            return
+            
+        frame = cv2.imread(frames[0])
+        height, width, layers = frame.shape
+        
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        video = cv2.VideoWriter(output_filename, fourcc, fps, (width, height))
+        
+        for frame_path in frames:
+            video.write(cv2.imread(frame_path))
+            
+        video.release()
+
 class Renderer:
     """Base rendering class that handles pygame initialization and basic drawing"""
-    def __init__(self, config: BaseVisualizerConfig):
-        pygame.init()
+    def __init__(self, config: BaseVisualizerConfig, video_writer: VideoWriter):
         self.config = config
-        self.screen = pygame.display.set_mode((config.width, config.height))
+        self.screen = pygame.Surface((config.width, config.height))
         self.font = pygame.font.Font(None, config.font_size)
+        self.video_writer = video_writer
     
     def clear_screen(self):
         self.screen.fill(self.config.background_color)
@@ -191,35 +219,8 @@ class Renderer:
             pygame.draw.polygon(self.screen, style.color, [point, left_point, right_point])
     
     def update_display(self):
-        pygame.display.flip()
-
-class VideoWriter:
-    """Handles saving frames and creating videos"""
-    def __init__(self, output_dir: str = "frames"):
-        self.frame_dir = output_dir
-        self.frame_count = 0
-        os.makedirs(output_dir, exist_ok=True)
-    
-    def save_frame(self, screen):
-        pygame.image.save(screen, f"{self.frame_dir}/frame_{self.frame_count:04d}.png")
-        self.frame_count += 1
-    
-    def create_video(self, output_filename: str = "animation.mp4", fps: int = 30):
-        frames = sorted(glob.glob(f"{self.frame_dir}/frame_*.png"))
-        if not frames:
-            print("No frames found!")
-            return
-            
-        frame = cv2.imread(frames[0])
-        height, width, layers = frame.shape
-        
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        video = cv2.VideoWriter(output_filename, fourcc, fps, (width, height))
-        
-        for frame_path in frames:
-            video.write(cv2.imread(frame_path))
-            
-        video.release()
+        # No need to flip display when using a Surface for off-screen rendering
+        pass
 
 class DataStructureVisualizer(ABC, Generic[T]):
     """Abstract base class for data structure visualizers"""

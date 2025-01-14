@@ -1,7 +1,6 @@
 from typing import List, Any, Optional
 from abc import ABC
-from base_visualizer import DataStructureVisualizer, Cell, BaseVisualizerConfig
-import pygame
+from base_visualizer import Cell, ElementStyle, ConnectorStyle, Renderer
 
 class Node:
     def __init__(self, value: int):
@@ -13,13 +12,18 @@ class LinkedListOperation(ABC):
         pass
 
 class InsertOperation(LinkedListOperation):
-    def animate(self, visualizer: 'LinkedListVisualizer', head: Node, value: int, position: int, hold_time: float = 2.0) -> Node:
+    def animate(self, visualizer: 'LinkedListVisualizer', head: Node, value: int, position: int, hold_time: float = 2.0, draw_callback = None) -> Node:
         new_node = Node(value)
         
         if position == 0:
             new_node.next = head
             head = new_node
-            visualizer.draw_structure(head, highlighted_elements=[value], hold_time=hold_time)
+            visualizer.renderer.clear_screen()
+            visualizer.draw_structure(head, highlighted_elements=[value])
+            if draw_callback:
+                draw_callback()
+            for _ in range(int(hold_time * 30)):
+                visualizer.renderer.video_writer.save_frame(visualizer.renderer.screen)
             return head
         
         current = head
@@ -34,18 +38,27 @@ class InsertOperation(LinkedListOperation):
         new_node.next = current.next
         current.next = new_node
         
-        visualizer.draw_structure(head, highlighted_elements=[value], hold_time=hold_time)
+        visualizer.renderer.clear_screen()
+        visualizer.draw_structure(head, highlighted_elements=[value])
+        if draw_callback:
+            draw_callback()
+        for _ in range(int(hold_time * 30)):
+            visualizer.renderer.video_writer.save_frame(visualizer.renderer.screen)
         return head
 
 class DeleteOperation(LinkedListOperation):
-    def animate(self, visualizer: 'LinkedListVisualizer', head: Node, position: int, hold_time: float = 2.0) -> Node:
+    def animate(self, visualizer: 'LinkedListVisualizer', head: Node, position: int, hold_time: float = 2.0, draw_callback = None) -> Node:
         if not head:
             return None
         
         if position == 0:
-            value_to_delete = head.value
             head = head.next
-            visualizer.draw_structure(head, hold_time=hold_time)
+            visualizer.renderer.clear_screen()
+            visualizer.draw_structure(head)
+            if draw_callback:
+                draw_callback()
+            for _ in range(int(hold_time * 30)):
+                visualizer.renderer.video_writer.save_frame(visualizer.renderer.screen)
             return head
         
         current = head
@@ -60,19 +73,24 @@ class DeleteOperation(LinkedListOperation):
             return head
         
         prev.next = current.next
-        visualizer.draw_structure(head, hold_time=hold_time)
+        visualizer.renderer.clear_screen()
+        visualizer.draw_structure(head)
+        if draw_callback:
+            draw_callback()
+        for _ in range(int(hold_time * 30)):
+            visualizer.renderer.video_writer.save_frame(visualizer.renderer.screen)
         return head
 
-class LinkedListVisualizer(DataStructureVisualizer[Node]):
-    def __init__(self, config: Optional[BaseVisualizerConfig] = None):
-        super().__init__(config)
+class LinkedListVisualizer:
+    def __init__(self, renderer: Renderer):
+        self.renderer = renderer
+        self.element_style = ElementStyle()
+        self.connector_style = ConnectorStyle()
+        self.cells: List[Cell] = []
         self.operations = {
             "insert": InsertOperation(),
             "delete": DeleteOperation()
         }
-
-    def cleanup(self):
-        pygame.quit()
 
     def create_cells(self, head: Node) -> List[Cell]:
         cells = []
@@ -85,8 +103,8 @@ class LinkedListVisualizer(DataStructureVisualizer[Node]):
             temp = temp.next
         
         total_width = node_count * (self.element_style.width + self.element_style.spacing) - self.element_style.spacing
-        start_x = (self.config.width - total_width) // 2
-        y = self.config.height // 2 - self.element_style.height // 2
+        start_x = (self.renderer.config.width - total_width) // 2
+        y = self.renderer.config.height // 4 - self.element_style.height // 2
         
         prev_cell = None
         i = 0
@@ -109,14 +127,12 @@ class LinkedListVisualizer(DataStructureVisualizer[Node]):
             
         return cells
     
-    def animate_operation(self, operation_name: str, *args, hold_time: float = 2.0, **kwargs) -> None:
+    def animate_operation(self, operation_name: str, *args, hold_time: float = 2.0, **kwargs) -> Node:
         if operation_name not in self.operations:
             raise ValueError(f"Unknown operation: {operation_name}")
         return self.operations[operation_name].animate(self, *args, hold_time=hold_time, **kwargs)
 
-    def draw_structure(self, data_structure: Node, highlighted_elements: Optional[List[Any]] = None, hold_time: float = 0) -> None:
-        self.renderer.clear_screen()
-        
+    def draw_structure(self, data_structure: Node, highlighted_elements: Optional[List[Any]] = None) -> None:
         self.cells = self.create_cells(data_structure)
         
         if highlighted_elements:
@@ -131,6 +147,3 @@ class LinkedListVisualizer(DataStructureVisualizer[Node]):
             
         if self.cells:
             self.renderer.draw_cell(self.cells[-1], self.element_style)
-        
-        self.renderer.update_display()
-        self.save_frame(hold_time)
