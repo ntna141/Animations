@@ -1,64 +1,102 @@
 from linked_list_visualizer import LinkedListVisualizer, Node
 from array_visualizer import ArrayVisualizer
 from base_visualizer import BaseVisualizerConfig, Renderer, VideoWriter
+from command_processor import CommandProcessor
 import os
 import glob
 import pygame
+import json
 
 if __name__ == "__main__":
-    # Initialize pygame once at the start
     os.environ['SDL_VIDEODRIVER'] = 'dummy'
     pygame.init()
     
-    # Clean up any existing frames
     for f in glob.glob("frames/*.png"):
         os.remove(f)
     
-    # Create shared config, video writer, and renderer
     config = BaseVisualizerConfig(width=800, height=600)
     video_writer = VideoWriter()
     renderer = Renderer(config, video_writer)
     
-    # Create visualizers that share the same renderer
-    list_visualizer = LinkedListVisualizer(renderer)
-    array_visualizer = ArrayVisualizer(renderer)
+    command_processor = CommandProcessor(renderer)
     
-    # Create initial data structures
-    head = Node(1)
-    head.next = Node(3)
-    head.next.next = Node(5)
-    head.next.next.next = Node(7)
+    array1 = [2, 4, 6, 8]
+    array2 = [1, 3, 5, 7]
     
-    array = [2, 4, 6, 8]
+    command_processor.add_data_structure("array1", array1, "array", (100, 150))
+    command_processor.add_data_structure("array2", array2, "array", (100, 350))
     
-    def draw_both():
-        renderer.clear_screen()
-        list_visualizer.draw_structure(head)
-        array_visualizer.draw_structure(array)
-        video_writer.save_frame(renderer.screen)
+    commands = [
+        {
+            "action": "highlight",
+            "target": "array1[0]",
+            "properties": {"color": "red", "duration": "1s"},
+            "step": 1,
+            "text": {"content": "Looking at first array", "pre_duration": "0.5s", "post_duration": "1s"},
+            "transcript": {"content": "We start with the first array", "duration": "2s"}
+        },
+        {
+            "action": "highlight",
+            "target": "array2[0]",
+            "properties": {"color": "red", "duration": "1s"},
+            "step": 2,
+            "text": {"content": "Now looking at second array", "pre_duration": "0.5s", "post_duration": "1s"},
+            "transcript": {"content": "Then we look at the second array", "duration": "2s"}
+        },
+        {
+            "action": "compare",
+            "target": "array1[0],array1[3]",
+            "properties": {"duration": "2s"},
+            "step": 3,
+            "text": {"content": "Compare elements in first array", "pre_duration": "0.5s", "post_duration": "1s"},
+            "transcript": {"content": "Comparing elements in the first array", "duration": "2s"}
+        },
+        {
+            "action": "compare",
+            "target": "array2[0],array2[3]",
+            "properties": {"duration": "2s"},
+            "step": 4,
+            "text": {"content": "Compare elements in second array", "pre_duration": "0.5s", "post_duration": "1s"},
+            "transcript": {"content": "Comparing elements in the second array", "duration": "2s"}
+        }
+    ]
     
-    # Show initial state of both structures
-    draw_both()
+    renderer.clear_screen()
+    for command in commands:
+        command_processor.process_command(json.dumps(command))
     
-    # Hold initial state
-    for _ in range(int(2 * 30)):  # 2 seconds at 30fps
-        video_writer.save_frame(renderer.screen)
+    list1 = Node(1)
+    list1.next = Node(3)
+    list1.next.next = Node(5)
     
-    # Interleave operations:
-    # 1. Array swap first and last
-    array = array_visualizer.animate_operation("swap", array, 0, 3, hold_time=2, draw_callback=lambda: list_visualizer.draw_structure(head))
+    list2 = Node(2)
+    list2.next = Node(4)
+    list2.next.next = Node(6)
     
-    # 2. List insert 4 at position 2
-    head = list_visualizer.animate_operation("insert", head, 4, 2, hold_time=2, draw_callback=lambda: array_visualizer.draw_structure(array))
+    command_processor.add_data_structure("list1", list1, "linked_list", (100, 450))
+    command_processor.add_data_structure("list2", list2, "linked_list", (100, 550))
     
-    # 3. Array swap middle elements
-    array = array_visualizer.animate_operation("swap", array, 1, 2, hold_time=2, draw_callback=lambda: list_visualizer.draw_structure(head))
+    list_commands = [
+        {
+            "action": "highlight",
+            "target": "list1[1]",
+            "properties": {"duration": "1s"},
+            "step": 5,
+            "text": {"content": "Highlight node in first list", "pre_duration": "0.5s", "post_duration": "1s"},
+            "transcript": {"content": "Looking at the second node in the first list", "duration": "2s"}
+        },
+        {
+            "action": "highlight",
+            "target": "list2[1]",
+            "properties": {"duration": "1s"},
+            "step": 6,
+            "text": {"content": "Highlight node in second list", "pre_duration": "0.5s", "post_duration": "1s"},
+            "transcript": {"content": "Looking at the second node in the second list", "duration": "2s"}
+        }
+    ]
     
-    # 4. List delete at position 1
-    head = list_visualizer.animate_operation("delete", head, 1, hold_time=2, draw_callback=lambda: array_visualizer.draw_structure(array))
+    for command in list_commands:
+        command_processor.process_command(json.dumps(command))
     
-    # Create video
     video_writer.create_video("animation.mp4", fps=30)
-    
-    # Cleanup pygame at the very end
     pygame.quit()

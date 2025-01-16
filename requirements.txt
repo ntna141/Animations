@@ -1,3 +1,4 @@
 pygame
 opencv-python
-cv2
+anthropic
+python-dotenv

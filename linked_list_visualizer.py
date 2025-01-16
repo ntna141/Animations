@@ -1,4 +1,4 @@
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Tuple
 from abc import ABC
 from base_visualizer import Cell, ElementStyle, ConnectorStyle, Renderer
 
@@ -91,8 +91,9 @@ class LinkedListVisualizer:
             "insert": InsertOperation(),
             "delete": DeleteOperation()
         }
+        self.position: Optional[Tuple[int, int]] = None
 
-    def create_cells(self, head: Node) -> List[Cell]:
+    def create_cells(self, head: Node, position: Optional[Tuple[int, int]] = None) -> List[Cell]:
         cells = []
         current = head
         
@@ -102,9 +103,18 @@ class LinkedListVisualizer:
             node_count += 1
             temp = temp.next
         
+        self.element_style.adjust_for_count(
+            node_count,
+            self.renderer.config.width * 0.9
+        )
+        
         total_width = node_count * (self.element_style.width + self.element_style.spacing) - self.element_style.spacing
-        start_x = (self.renderer.config.width - total_width) // 2
-        y = self.renderer.config.height // 4 - self.element_style.height // 2
+        
+        if position:
+            start_x, y = position
+        else:
+            start_x = (self.renderer.config.width - total_width) // 2
+            y = self.renderer.config.default_y
         
         prev_cell = None
         i = 0
@@ -133,7 +143,7 @@ class LinkedListVisualizer:
         return self.operations[operation_name].animate(self, *args, hold_time=hold_time, **kwargs)
 
     def draw_structure(self, data_structure: Node, highlighted_elements: Optional[List[Any]] = None) -> None:
-        self.cells = self.create_cells(data_structure)
+        self.cells = self.create_cells(data_structure, self.position)
         
         if highlighted_elements:
             for cell in self.cells:
