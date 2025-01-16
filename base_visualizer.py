@@ -344,6 +344,34 @@ class Renderer:
         
         pygame.draw.polygon(self.screen, style.color, [point, left_point, right_point])
     
+    def draw_self_pointing_arrow(self, center: Tuple[int, int], style: ConnectorStyle) -> None:
+        # Draw an arc above the cell that points downward
+        offset_y = -30  # Move up from the cell center
+        width = 30      # Width of the arc
+        height = 20     # Height of the arc
+        
+        # Calculate control points for the arc
+        start_point = (center[0] - width//2, center[1] + offset_y)
+        control_point = (center[0], center[1] + offset_y - height)
+        end_point = (center[0] + width//2, center[1] + offset_y)
+        
+        points = []
+        steps = 20
+        for i in range(steps + 1):
+            t = i / steps
+            # Quadratic Bezier curve
+            x = (1-t)**2 * start_point[0] + 2*(1-t)*t * control_point[0] + t**2 * end_point[0]
+            y = (1-t)**2 * start_point[1] + 2*(1-t)*t * control_point[1] + t**2 * end_point[1]
+            points.append((int(x), int(y)))
+        
+        # Draw the arc
+        if len(points) > 1:
+            pygame.draw.lines(self.screen, style.color, False, points, style.thickness)
+            
+            # Draw arrow head pointing down to the cell
+            arrow_point = (center[0], center[1] - 5)  # Slightly above cell center
+            self._draw_arrow_head(arrow_point, (0, 1), style)  # Point downward
+    
     def update_display(self):
         pass
 

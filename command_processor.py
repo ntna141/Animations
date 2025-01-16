@@ -14,6 +14,10 @@ class VisualizationCommand:
     duration: Optional[str] = "2s"
     line: Optional[int] = None
     text: Optional[str] = None
+    action: Optional[str] = None
+    properties: Optional[Dict[str, Any]] = None
+    code_lines: Optional[Dict[str, Any]] = None
+    transcript: Optional[Dict[str, Any]] = None
 
 class CommandProcessor:
     def __init__(self, renderer: Renderer):
