@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage, SystemMessage
-from visualize_solution import SolutionVisualizer, get_available_commands, format_command_template
+from simple_visualizer import SimpleVisualizer, VisualizerConfig
+from frame import Frame, DataStructure
 from linked_list_visualizer import Node
 
 load_dotenv()
@@ -15,53 +16,44 @@ chat_model = ChatAnthropic(
     max_tokens=8192
 )
 
-command_format = '''
-{
-    "step": number (required) - The step number in sequence
-    "target": "main_array" (required) - MUST ALWAYS be "main_array"
-    "state": {
-        "elements": array (required) - MUST contain the COMPLETE array state
-        "highlighted": array - Indices to highlight
-        "arrows": array - Pairs of [from_idx, to_idx] for arrows
-    },
-    "duration": string (optional) - Animation duration (default "3s")
-    "line": number (optional) - Code line to highlight
-    "text": {
-        "content": string (required) - A detailed explanation in complete sentences
-        "pre_duration": string (optional) - Time to show text before animation (default "1s")
-        "post_duration": string (optional) - Time to show text after animation (default "2s")
-    }
-}'''
+frame_format = '''
+Frame(
+    elements=[1, 2, 3],  
+    highlighted=[0, 1],  
+    arrows=[(0, 2)],     
+    self_arrows=[1],     
+    labels={0: ["i"]},   
+    pointers={1: ["L"]}, 
+    duration="3s",       
+    line=5,             
+    text="Description",  
+    pre_duration="1s",   
+    post_duration="2s"   
+)'''
 
-example_commands = '''[
-    {
-        "step": 1,
-        "target": "main_array",
-        "state": {
-            "elements": [1, 2, 3, 4],
-            "highlighted": [0],
-            "arrows": []
-        },
-        "text": {
-            "content": "Let's start by looking at our initial array. We have four numbers in ascending order, which will help us understand how the algorithm works with sorted data.",
-            "pre_duration": "1s",
-            "post_duration": "2s"
-        }
-    },
-    {
-        "step": 2,
-        "target": "main_array",
-        "state": {
-            "elements": [2, 1, 3, 4],
-            "highlighted": [0, 1],
-            "arrows": []
-        },
-        "text": {
-            "content": "When we compare the first two elements, we notice that 2 is greater than 1. This means we need to swap them to maintain our sorting criteria. Understanding these basic comparison and swap operations is crucial for following the algorithm's logic.",
-            "pre_duration": "1s",
-            "post_duration": "2s"
-        }
-    }
+example_frames = '''[
+    Frame(
+        elements=[-4, -1, -1, 0, 1, 2],
+        highlighted=[0],
+        text="Let's start by looking at our array. We'll use -4 as our anchor point.",
+        labels={0: ["i", "anchor"]}
+    ),
+    Frame(
+        elements=[-4, -1, -1, 0, 1, 2],
+        highlighted=[0, 1, 5],
+        pointers={1: ["L"], 5: ["R"]},
+        text="We'll use two pointers, L and R, to find numbers that sum with our anchor to zero.",
+        labels={0: ["i", "anchor"]}
+    ),
+    Frame(
+        elements=[-4, -1, -1, 0, 1, 2],
+        highlighted=[0, 1, 5],
+        arrows=[(1, 5)],
+        pointers={1: ["L"], 5: ["R"]},
+        labels={0: ["i", "anchor"], 1: ["sum = -5"], 5: ["too small"]},
+        line=5,
+        text="Current sum: -4 + (-1) + 2 = -3. This is too small, so we need to move L right."
+    )
 ]'''
 
 def analyze_solution(solution_code: str) -> Tuple[str, Any, str]:
@@ -121,206 +113,272 @@ Here's the solution:
     return data_structure, initial_data, description
 
 def generate_walkthrough_script(solution_code: str, description: str) -> str:
-    system_message = SystemMessage(content="""You are a patient and thorough coding tutor who explains algorithms step by step.
-Your goal is to help students understand not just what the code does, but why each step is necessary.""")
+    system_message = SystemMessage(content="""You are a patient and thorough coding tutor who explains algorithms through visual steps.
+Create a step-by-step walkthrough that shows exactly how the algorithm works with a specific example, similar to watching an animation.
+Focus on showing the state of the data structure at each step and explaining what's happening, not on explaining the code itself.""")
     
-    prompt = PromptTemplate.from_template("""Given this solution code and description:
+    prompt = PromptTemplate.from_template("""Create a step-by-step visual walkthrough of this algorithm:
 
 Description: {description}
 Code:
 {solution_code}
 
-Create a detailed walkthrough that explains how the code works. For each step:
-1. Explain what the code is doing in plain English, using complete sentences
-2. Explain WHY this step is necessary for solving the problem
-3. Connect each step to the bigger picture of the algorithm
-4. Use student-friendly language, avoiding jargon when possible
-5. If there are edge cases or special conditions, explain why we need to handle them
+Your walkthrough should:
+1. Use a specific, simple example that clearly demonstrates the algorithm
+2. Show the exact state of the data structure at each step
+3. Use visual markers like underlines (_) for anchors and arrows (↑) for pointers
+4. Explain what's happening in plain English at each step
+5. Focus on the algorithm's behavior, not the code implementation
 
-Focus on helping students build a mental model of how the algorithm works.
-Each explanation should be 2-3 sentences long, detailed enough for a beginner to understand.
+Format your response like this example:
 
-Return the walkthrough as a series of steps, where each step includes:
-1. The current state of the data structure
-2. A thorough explanation of what's happening
-3. Any elements that should be highlighted
-4. Any arrows or connections to show
-6. Have time long enough for the user to read and understand the text
-                                          
-Format each step as a visualization command following this structure:
-{command_format}""")
+Let me show you how we solve the threeSum problem using the array [-4, -1, -1, 0, 1, 2].
+
+STEP 0 - THE SETUP
+First, think of this like a game where you're trying to balance a scale to zero. We'll pick one number as our anchor, then try to find two other numbers that balance it out.
+
+We sort our numbers first: [-4, -1, -1, 0, 1, 2]
+
+STEP 1 - FIRST ANCHOR (-4)
+Let's pick -4 as our anchor. We'll underline it and use two pointers (L and R) to find numbers that sum with it to zero:
+
+[-4, -1, -1,  0,  1,  2]
+ _    ↑               ↑
+ i    L               R
+
+Think: "We need two numbers that add up to +4 to balance out our -4"
+
+[Continue with similar detailed visual steps...]
+
+Remember to:
+1. Show the exact state of the data structure at each step
+2. Use visual markers consistently
+3. Explain the reasoning behind each move
+4. Keep the focus on what's happening visually""")
 
     message = chat_model.invoke([
         system_message,
         HumanMessage(content=prompt.format(
             description=description,
-            solution_code=solution_code,
-            command_format=command_format
+            solution_code=solution_code
         ))
     ])
     
     return message.content
 
-def generate_visualization_commands_from_script(walkthrough_script: str, data_structure_type: str, solution_code: str) -> List[Dict[str, Any]]:
-    commands = get_available_commands(data_structure_type)
-    template = format_command_template(data_structure_type)
+def safe_eval_frames(frames_str: str) -> List[Frame]:
+    """Safely evaluate frames string into Frame objects"""
     
-    system_message = SystemMessage(content="You are a helpful coding assistant that converts walkthrough scripts into precise visualization commands.")
+    frames_str = frames_str.strip()
     
-    prompt = PromptTemplate.from_template("""Here's a walkthrough script explaining an algorithm:
-
-{walkthrough_script}
-
-Convert this script into visualization commands that show each step.
-Each command MUST be a state-based command (not action-based) with these fields:
-
-{command_format}
-
-Example of proper state-based commands:
-{example_commands}
-
-Requirements:
-1. EVERY command MUST:
-   - Use "main_array" as target
-   - Include complete array state in elements
-   - Use state-based format (not action-based)
-2. NO action-based commands (new_diagram, highlight, swap, etc.)
-3. Keep array state consistent between steps
-4. Use step numbers in sequence
-5. Keep explanations brief and focused
-6. Have time long enough for the user to read and understand the text
-
-Return ONLY the JSON array of commands, nothing else.""")
-
-    message = chat_model.invoke([
-        system_message,
-        HumanMessage(content=prompt.format(
-            walkthrough_script=walkthrough_script,
-            command_format=command_format,
-            example_commands=example_commands
-        ))
-    ])
+    
+    if 'Frame(' not in frames_str[:10]:  
+        start_idx = frames_str.find('[')
+        if start_idx == -1:
+            return []
+        frames_str = frames_str[start_idx:]
     
     try:
-        response = message.content
-        print("\nRaw Commands Generated:")
-        print(response)
         
-        start_idx = response.find('[')
-        end_idx = response.rfind(']')
+        globals_dict = {
+            'Frame': Frame,
+            'DataStructure': DataStructure,
+            'True': True,
+            'False': False,
+            'None': None
+        }
         
-        if start_idx == -1 or end_idx == -1:
-            print("Could not find JSON array in response")
-            return []
-            
-        json_str = response[start_idx:end_idx + 1]
         
-        try:
-            commands = json.loads(json_str)
-            valid_commands = []
-            for cmd in commands:
-                if cmd.get("target") != "main_array":
-                    print(f"Skipping command with invalid target: {cmd.get('target')}")
-                    continue
-                if not cmd.get("state", {}).get("elements"):
-                    print(f"Skipping command without elements state: {cmd}")
-                    continue
-                valid_commands.append(cmd)
-            print(f"\nProcessed {len(valid_commands)} valid commands")
-            return valid_commands
-        except json.JSONDecodeError as e:
-            print(f"Error parsing JSON array: {e}")
-            return []
-            
+        local_dict = {}
+        exec(f"frames = {frames_str}", globals_dict, local_dict)
+        
+        return local_dict['frames']
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        print(f"Error evaluating frames: {e}")
         return []
 
-def generate_intuition_commands(solution_code: str) -> List[Dict[str, Any]]:
+def generate_intuition_frames(solution_code: str, description: str) -> List[Frame]:
     system_message = SystemMessage(content="""You are an expert algorithm teacher who creates clear, visual explanations.
+For merge sort specifically, use multiple arrays to show the division and merging process clearly.
 Your goal is to help students understand the core concepts before diving into code.""")
     
-    prompt = PromptTemplate.from_template("""Given this solution code:
+    prompt = PromptTemplate.from_template("""Create an intuitive explanation of this algorithm:
 
+Solution:
 {solution_code}
 
-Create a step-by-step intuitive explanation of how the algorithm works. Each step should be 4-5 seconds long.
+Description:
+{description}
+
+For merge sort, you should:
+1. Show the division process by creating separate arrays for each subarray
+2. Name the arrays meaningfully (e.g., 'left', 'right', 'left1', 'left2', etc.)
+3. Show the merging process by displaying both input arrays and the merged result
+
+Each frame should be created using this format:
+
+Frame(
+    structures={{
+        'main': DataStructure(
+            type="array",  
+            elements=[1, 2, 3],  
+            highlighted=[0, 1],  
+            arrows=[(0, 2)],     
+            self_arrows=[1],     
+            labels={{0: ["i"]}},   
+            pointers={{1: ["L"]}}  
+        ),
+        'left': DataStructure(
+            type="array",
+            elements=[1, 2],
+            highlighted=[0, 1]
+        ),
+        'right': DataStructure(
+            type="array",
+            elements=[3, 4],
+            highlighted=[0, 1]
+        )
+    }},
+    duration="3s",       
+    line=5,             
+    text="Description"   
+)
 
 Focus on:
-1. Start with a simple example that shows the problem
-2. Break down the core pattern/idea of the algorithm
+1. Start with a simple example that clearly shows the pattern
+2. Break down the core idea step by step
 3. Show how the pattern solves the problem
-4. Demonstrate with 2-3 different examples
-5. Point out any tricks or optimizations
+4. Point out key insights and tricks
+5. Use visual elements (highlights, arrows, labels) effectively
 
-For each step:
-1. Use clear, complete sentences a beginner can understand
-2. Explain WHY each part is important
-3. Build up the concept gradually
-4. Use arrows to show relationships
-5. Highlight relevant elements
+Requirements:
+1. Include 6-8 frames for a proper explanation
+2. Set appropriate durations (longer for complex ideas)
+3. Use clear, complete sentences a beginner can understand
+4. Build concepts gradually
+5. Use arrows to show relationships
+6. Use labels and pointers to identify important elements
+7. Keep text concise but informative
 
-Each step should follow this exact format:
-{command_format}
-
-Make sure to:
-1. Include at least 6-8 steps for proper explanation
-2. Set duration to "4s" or "5s" for each step
-3. Set pre_duration to "1s" and post_duration to "2s"
-4. Use highlighting and arrows to draw attention
-5. Keep array state consistent between steps
-6. Have time long enough for the user to read and understand the text
-
-Example step:
-{example_commands}""")
+Return ONLY the Python list of Frame objects, nothing else.""")
 
     message = chat_model.invoke([
         system_message,
         HumanMessage(content=prompt.format(
             solution_code=solution_code,
-            command_format=command_format,
-            example_commands=example_commands[0:200]
+            description=description
         ))
     ])
     
     try:
         response = message.content
-        start_idx = response.find('[')
-        end_idx = response.rfind(']')
+        print("\nRaw Intuition Frames Generated:")
+        print(response)
         
-        if start_idx == -1 or end_idx == -1:
-            print("Could not find JSON array in response")
-            return []
-            
-        json_str = response[start_idx:end_idx + 1]
-        commands = json.loads(json_str)
         
-        # Ensure minimum duration for each command
-        valid_commands = []
-        for cmd in commands:
-            if cmd.get("target") != "main_array":
-                print(f"Skipping command with invalid target: {cmd.get('target')}")
-                continue
-            if not cmd.get("state", {}).get("elements"):
-                print(f"Skipping command without elements state: {cmd}")
-                continue
-                
-            # Ensure proper text format and duration
-            if isinstance(cmd.get("text"), str):
-                cmd["text"] = {
-                    "content": cmd["text"],
-                    "pre_duration": "1s",
-                    "post_duration": "2s"
-                }
-            cmd["duration"] = "4s"  # Ensure minimum duration
-            valid_commands.append(cmd)
+        frames_str = response[response.find('['):response.rfind(']')+1]
         
-        if len(valid_commands) < 4:
-            print("Warning: Generated too few steps for intuition video")
-            
-        return valid_commands
+        frames_str = frames_str.replace('\n', ' ').strip()
+        namespace = {
+            'Frame': Frame,
+            'DataStructure': DataStructure,
+            'True': True,
+            'False': False,
+            'None': None,
+            'List': List
+        }
+        frames = eval(frames_str, namespace)
+        print(f"\nProcessed {len(frames)} frames")
+        return frames
     except Exception as e:
-        print(f"Error generating intuition commands: {e}")
+        print(f"Error generating frames: {e}")
+        return []
+
+def generate_visualization_frames(walkthrough_script: str, data_structure_type: str, solution_code: str) -> List[Frame]:
+    system_message = SystemMessage(content="""You are a helpful coding assistant that converts walkthrough scripts into precise visualization frames.
+For merge sort specifically, use multiple arrays to show the division and merging process clearly.""")
+    
+    prompt = PromptTemplate.from_template("""Here's a walkthrough script explaining an algorithm:
+
+{walkthrough_script}
+
+Convert this script into visualization frames that show each step.
+For example, with merge sort, you should:
+1. Show the division process by creating separate arrays for each subarray
+2. Name the arrays meaningfully (e.g., 'left', 'right', 'left1', 'left2', etc.)
+3. Show the merging process by displaying both input arrays and the merged result
+
+Each frame should be created using this format:
+
+Frame(
+    structures={{
+        'main': DataStructure(
+            type="{data_structure_type}",
+            elements=[1, 2, 3],
+            highlighted=[0, 1],
+            arrows=[(0, 2)],
+            self_arrows=[1],
+            labels={{0: ["i"]}},
+            pointers={{1: ["L"]}}
+        ),
+        'left': DataStructure(
+            type="{data_structure_type}",
+            elements=[1, 2],
+            highlighted=[0, 1]
+        ),
+        'right': DataStructure(
+            type="{data_structure_type}",
+            elements=[3, 4],
+            highlighted=[0, 1]
+        )
+    }},
+    duration="3s",
+    line=5,
+    text="We continue this process, always picking the smaller of the two elements we're comparing"
+)
+
+Requirements:
+1. Show the complete process of the algorithm using multiple data structures if needed
+2. Keep data structure state consistent between frames
+3. Use step numbers in sequence
+4. Explanations should be simple and easy to understand, good enough for a beginner who barely understand Data Structures and faithful to the script
+5. Have time long enough for the user to read and understand the text
+6. Be faithful to the script, use the same example, same dialoge and steps, same highlights and arrows if available
+7. Use line numbers from the solution code when relevant
+8. If it is a complicated process for a beginneer, use the before frame as a reference to show how the data structure changes
+
+Return ONLY the Python list of Frame objects, nothing else.""")
+
+    message = chat_model.invoke([
+        system_message,
+        HumanMessage(content=prompt.format(
+            walkthrough_script=walkthrough_script,
+            data_structure_type=data_structure_type
+        ))
+    ])
+    
+    try:
+        response = message.content
+        print("\nRaw Frames Generated:")
+        print(response)
+        
+        
+        frames_str = response[response.find('['):response.rfind(']')+1]
+        
+        frames_str = frames_str.replace('\n', ' ').strip()
+        namespace = {
+            'Frame': Frame,
+            'DataStructure': DataStructure,
+            'True': True,
+            'False': False,
+            'None': None,
+            'List': List
+        }
+        frames = eval(frames_str, namespace)
+        print(f"\nProcessed {len(frames)} frames")
+        return frames
+    except Exception as e:
+        print(f"Error generating frames: {e}")
         return []
 
 def process_leetcode_solution(solution_code: str, output_file: str = "animation.mp4") -> None:
@@ -330,85 +388,25 @@ def process_leetcode_solution(solution_code: str, output_file: str = "animation.
     print(f"Initial Data: {initial_data}")
     print(f"Description: {description}")
     
-    print("\n=== Step 2: Generating Intuition Video ===")
-    raw_intuition_commands = generate_intuition_commands(solution_code)
+    print("\n=== Step 2: Generating Intuition Frames ===")
+    intuition_frames = generate_intuition_frames(solution_code, description)
+    print(f"Generated {len(intuition_frames)} intuition frames")
     
-    # Process intuition commands to ensure text is string
-    intuition_commands = []
-    for cmd in raw_intuition_commands:
-        text_data = cmd.get("text", {})
-        if isinstance(text_data, dict):
-            cmd["text"] = text_data.get("content", "")
-        elif isinstance(text_data, str):
-            cmd["text"] = text_data
-        else:
-            cmd["text"] = str(text_data)
-        intuition_commands.append(cmd)
+    print("\n=== Step 3: Creating Intuition Video ===")
+    config = VisualizerConfig()
+    visualizer = SimpleVisualizer(config)
+    visualizer.visualize_frames(intuition_frames, "intuition.mp4")
     
-    print(f"Generated {len(intuition_commands)} intuition commands")
-    
-    intuition_visualizer = SolutionVisualizer()
-    intuition_visualizer.create_visualization(initial_data, data_structure_type, intuition_commands, "intuition.mp4")
-    intuition_visualizer.cleanup()
-    
-    print("\n=== Step 3: Generating Code Walkthrough Script ===")
+    print("\n=== Step 4: Generating Walkthrough Script ===")
     walkthrough_script = generate_walkthrough_script(solution_code, description)
     print("Walkthrough Script:")
     print(walkthrough_script)
     
-    print("\n=== Step 4: Converting Script to Visualization Commands ===")
-    raw_commands = generate_visualization_commands_from_script(walkthrough_script, data_structure_type, solution_code)
-    print(f"Generated {len(raw_commands)} raw commands")
+    print("\n=== Step 5: Converting Script to Frames ===")
+    walkthrough_frames = generate_visualization_frames(walkthrough_script, data_structure_type, solution_code)
+    print(f"Generated {len(walkthrough_frames)} walkthrough frames")
     
-    print("\n=== Step 5: Processing Commands ===")
-    commands = []
-    for cmd in raw_commands:
-        if cmd.get("target") != "main_array":
-            print(f"Skipping command with invalid target: {cmd.get('target')}")
-            continue
-            
-        # Convert from action-based format to state-based format
-        if "action" in cmd:
-            state = {
-                "elements": cmd.get("state", {}).get("elements", []),
-                "highlighted": cmd.get("state", {}).get("highlighted", []),
-                "arrows": cmd.get("state", {}).get("arrows", [])
-            }
-            
-            # Extract text content
-            text_data = cmd.get("text", {})
-            if isinstance(text_data, dict):
-                text_content = text_data.get("content", "")
-            elif isinstance(text_data, str):
-                text_content = text_data
-            else:
-                text_content = str(text_data)
-            
-            command = {
-                "step": cmd["step"],
-                "target": "main_array",
-                "state": state,
-                "duration": cmd.get("properties", {}).get("duration", "3s"),
-                "line": cmd.get("code_lines", {}).get("line") if "code_lines" in cmd else None,
-                "text": text_content
-            }
-            commands.append(command)
-        else:
-            # Extract text content for non-action commands
-            text_data = cmd.get("text", {})
-            if isinstance(text_data, dict):
-                cmd["text"] = text_data.get("content", "")
-            elif isinstance(text_data, str):
-                cmd["text"] = text_data
-            else:
-                cmd["text"] = str(text_data)
-            commands.append(cmd)
-    
-    print(f"Processed {len(commands)} valid commands")
-    
-    print("\n=== Step 6: Creating Code Walkthrough Video ===")
-    code_visualizer = SolutionVisualizer()
-    code_visualizer.set_solution_code(solution_code)
-    code_visualizer.create_visualization(initial_data, data_structure_type, commands, output_file)
-    code_visualizer.cleanup()
+    print("\n=== Step 6: Creating Walkthrough Video ===")
+    visualizer = SimpleVisualizer(config)
+    visualizer.visualize_frames(walkthrough_frames, output_file)
     print(f"Visualization saved to {output_file}") 

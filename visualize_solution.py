@@ -6,6 +6,9 @@ from linked_list_visualizer import Node
 import os
 import glob
 import pygame
+import inspect
+from array_visualizer import ArrayVisualizer
+from linked_list_visualizer import LinkedListVisualizer, InsertOperation, DeleteOperation
 
 class SolutionVisualizer(DataStructureVisualizer):
     def __init__(self):
@@ -58,32 +61,119 @@ class SolutionVisualizer(DataStructureVisualizer):
         
         self.video_writer.create_video(output_file, fps=30)
 
-def get_available_commands(data_structure_type: str) -> Dict[str, List[str]]:
-    commands = {
-        "array": {
-            "actions": ["highlight", "swap", "compare", "new_diagram", "switch_diagram"],
-            "target_format": "array[index] or array[index1],array[index2]",
-            "properties": {
-                "color": "Color for highlighting (e.g., 'red')",
-                "duration": "Duration in seconds (e.g., '2s')",
-                "diagram_name": "Name of diagram to create/switch to",
-                "initial_data": "Initial data for new diagram",
-                "position": "Position for new diagram (x,y)"
-            }
+def get_available_commands(data_structure_type: str) -> Dict[str, Any]:
+    """Get available commands and their documentation for a given data structure type.
+    
+    Common capabilities across all visualizations:
+    - Text display: Upper text, middle text, and transcript text can be shown
+    - Code highlighting: Any line of code can be highlighted with optional comments
+    - Duration control: All animations can specify duration in seconds (e.g. "2s")
+    - Multiple diagrams: Can create and switch between multiple visualizations
+    """
+    
+    base_properties = {
+        "duration": "Duration in seconds (e.g., '2s')",
+        "diagram_name": "Name of diagram to create/switch to",
+        "initial_data": "Initial data for new diagram",
+        "position": "Position for new diagram (x,y)",
+        "text": {
+            "content": "Text explanation to display",
+            "pre_duration": "Time to show text before animation (default '1s')",
+            "post_duration": "Time to show text after animation (default '2s')"
         },
-        "linked_list": {
-            "actions": ["highlight", "insert", "delete", "new_diagram", "switch_diagram"],
-            "target_format": "list[position]",
-            "properties": {
-                "value": "Value to insert (only for insert)",
-                "duration": "Duration in seconds (e.g., '2s')",
-                "diagram_name": "Name of diagram to create/switch to",
-                "initial_data": "Initial data for new diagram",
-                "position": "Position for new diagram (x,y)"
-            }
+        "transcript": {
+            "content": "Detailed explanation for transcript area",
+            "duration": "How long to display the transcript"
+        },
+        "code_lines": {
+            "line": "Line number to highlight in code",
+            "comment": "Optional comment to show next to highlighted line"
         }
     }
-    return commands.get(data_structure_type, {})
+    
+    base_actions = [
+        "new_diagram", 
+        "switch_diagram" 
+    ]
+    
+    visualizer_map = {
+        "array": ArrayVisualizer,
+        "linked_list": LinkedListVisualizer
+    }
+    
+    if data_structure_type not in visualizer_map:
+        return {}
+    
+    visualizer_class = visualizer_map[data_structure_type]
+    commands = {
+        "actions": base_actions.copy(),
+        "properties": base_properties.copy(),
+    }
+    
+    
+    if data_structure_type == "array":
+        commands["actions"].extend(["highlight", "swap", "compare"])
+        commands["target_format"] = "array[index] or array[index1],array[index2]"
+        commands["properties"]["color"] = "Color for highlighting (e.g., 'red')"
+        
+        commands["operations"] = {
+            "swap": """Swaps two elements in the array with animation.
+                    Usage: {"action": "swap", "target": "array[0],array[1]"}
+                    Features:
+                    - Animates elements smoothly moving to their new positions
+                    - Highlights swapped elements
+                    - Can specify custom duration""",
+            
+            "highlight": """Highlights specified elements in the array.
+                        Usage: {"action": "highlight", "target": "array[0]"} or {"action": "highlight", "target": "array[0],array[1]"}
+                        Features:
+                        - Can highlight single or multiple elements
+                        - Customizable highlight color
+                        - Can add labels or pointers above elements
+                        - Can specify custom duration""",
+            
+            "compare": """Shows comparison between two elements with a curved arrow.
+                      Usage: {"action": "compare", "target": "array[0],array[1]"}
+                      Features:
+                      - Draws curved double-ended arrow between elements
+                      - Highlights compared elements
+                      - Can customize arrow style and color
+                      - Can specify custom duration"""
+        }
+        
+    elif data_structure_type == "linked_list":
+        commands["actions"].extend(["highlight", "insert", "delete"])
+        commands["target_format"] = "list[position]"
+        commands["properties"]["value"] = "Value to insert (only for insert)"
+        
+        commands["operations"] = {
+            "insert": """Inserts a new node at the specified position.
+                     Usage: {"action": "insert", "target": "list[1]", "properties": {"value": 42}}
+                     Features:
+                     - Animates node insertion
+                     - Updates connections smoothly
+                     - Highlights new node
+                     - Can insert at any valid position
+                     - Can specify custom duration""",
+            
+            "delete": """Deletes a node at the specified position.
+                     Usage: {"action": "delete", "target": "list[1]"}
+                     Features:
+                     - Animates node removal
+                     - Updates connections smoothly
+                     - Can delete from any valid position
+                     - Can specify custom duration""",
+            
+            "highlight": """Highlights specified node in the linked list.
+                       Usage: {"action": "highlight", "target": "list[1]"}
+                       Features:
+                       - Can highlight any node by position
+                       - Can add labels or pointers above nodes
+                       - Customizable highlight color
+                       - Can specify custom duration"""
+        }
+    
+    return commands
 
 def format_command_template(data_structure_type: str) -> str:
     base_template = {
@@ -111,7 +201,7 @@ def format_command_template(data_structure_type: str) -> str:
     return json.dumps(base_template, indent=4)
 
 if __name__ == "__main__":
-    # Example array-based solution
+    
     array_solution = """
 def bubble_sort(arr):
     n = len(arr)
@@ -122,7 +212,7 @@ def bubble_sort(arr):
     return arr
     """
     
-    # Example commands for bubble sort visualization
+    
     initial_array = [64, 34, 25, 12]
     commands = [
         {

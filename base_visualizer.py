@@ -34,9 +34,17 @@ class BaseVisualizerConfig:
     code_line_height: int = height // 22
     code_highlight_color: Tuple[int, int, int] = (255, 240, 200)
     
-    transcript_y: int = int(height * 0.57)
+    upper_text_y: int = int(height * 0.1)  
+    middle_text_y: int = int(height * 0.57)  
+    bottom_text_y: int = int(height * 0.85)  
+    
+    transcript_position: str = "middle"  
     
     max_elements_horizontal: int = 8
+    
+    pointer_color: Tuple[int, int, int] = (50, 50, 200)
+    label_color: Tuple[int, int, int] = (100, 100, 100)
+    pointer_offset: int = 40
 
 @dataclass
 class ElementStyle:
@@ -87,6 +95,8 @@ class Cell:
         self.height = height
         self.connections: Set['Cell'] = set()
         self.highlighted = False
+        self.labels: List[str] = []
+        self.pointers: List[str] = []
     
     @property
     def rect(self) -> pygame.Rect:
@@ -142,6 +152,7 @@ class Renderer:
         self.highlighted_lines: Set[int] = set()
         self.line_comments: Dict[int, str] = {}
         self.transcript_text: str = ""
+        self.upper_text: str = ""
     
     def set_code(self, code: str) -> None:
         self.code_lines = code.strip().split('\n')
@@ -158,44 +169,71 @@ class Renderer:
     def set_transcript(self, text: str) -> None:
         self.transcript_text = text
     
-    def draw_transcript(self) -> None:
-        if self.transcript_text:
-            transcript_height = self.config.height // 12
-            transcript_rect = pygame.Rect(
+    def set_upper_text(self, text: str) -> None:
+        self.upper_text = text
+    
+    def draw_upper_text(self) -> None:
+        if self.upper_text:
+            text_height = self.config.height // 12
+            text_rect = pygame.Rect(
                 0,
-                self.config.transcript_y - transcript_height//2,
+                self.config.upper_text_y - text_height//2,
                 self.config.width,
-                transcript_height
+                text_height
             )
             
-            pygame.draw.rect(self.screen, (245, 245, 245), transcript_rect, border_radius=20)
+            pygame.draw.rect(self.screen, (245, 245, 245), text_rect, border_radius=20)
+            self._draw_multiline_text(
+                self.upper_text,
+                self.config.upper_text_y,
+                self.font
+            )
+    
+    def _draw_multiline_text(self, text: str, y_position: int, font: pygame.font.Font) -> None:
+        words = text.split()
+        lines = []
+        current_line = []
+        
+        for word in words:
+            current_line.append(word)
+            test_surface = font.render(' '.join(current_line), True, self.config.text_color)
+            if test_surface.get_width() > self.config.width * 0.85:
+                current_line.pop()
+                if current_line:
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+        
+        if current_line:
+            lines.append(' '.join(current_line))
+        
+        line_height = font.get_height() * 1.2
+        start_y = y_position - (len(lines) * line_height) / 2
+        
+        for i, line in enumerate(lines):
+            self.draw_text(
+                line,
+                (self.config.width//2, start_y + i * line_height),
+                center=True,
+                font=font
+            )
+    
+    def draw_transcript(self) -> None:
+        if not self.transcript_text or self.config.transcript_position == "none":
+            return
             
-            words = self.transcript_text.split()
-            lines = []
-            current_line = []
-            
-            for word in words:
-                current_line.append(word)
-                test_surface = self.font.render(' '.join(current_line), True, self.config.text_color)
-                if test_surface.get_width() > self.config.width * 0.85:
-                    current_line.pop()
-                    if current_line:
-                        lines.append(' '.join(current_line))
-                    current_line = [word]
-            
-            if current_line:
-                lines.append(' '.join(current_line))
-            
-            line_height = self.config.font_size * 1.2
-            start_y = self.config.transcript_y - (len(lines) * line_height) / 2
-            
-            for i, line in enumerate(lines):
-                self.draw_text(
-                    line,
-                    (self.config.width//2, start_y + i * line_height),
-                    center=True,
-                    font=self.font
-                )
+        y_pos = (self.config.middle_text_y if self.config.transcript_position == "middle" 
+                else self.config.bottom_text_y)
+        
+        transcript_height = self.config.height // 12
+        transcript_rect = pygame.Rect(
+            0,
+            y_pos - transcript_height//2,
+            self.config.width,
+            transcript_height
+        )
+        
+        pygame.draw.rect(self.screen, (245, 245, 245), transcript_rect, border_radius=20)
+        self._draw_multiline_text(self.transcript_text, y_pos, self.font)
     
     def draw_code(self) -> None:
         if not self.code_lines:
@@ -236,12 +274,16 @@ class Renderer:
     
     def clear_screen(self):
         self.screen.fill(self.config.background_color)
+        self.draw_upper_text()
         self.draw_code()
         self.draw_transcript()
     
-    def draw_text(self, text: str, position: Tuple[int, int], center: bool = True, font: Optional[pygame.font.Font] = None) -> pygame.Rect:
+    def draw_text(self, text: str, position: Tuple[int, int], center: bool = True, 
+                 font: Optional[pygame.font.Font] = None, 
+                 color: Optional[Tuple[int, int, int]] = None) -> pygame.Rect:
         font = font or self.font
-        text_surface = font.render(text, True, self.config.text_color)
+        color = color or self.config.text_color
+        text_surface = font.render(text, True, color)
         text_rect = text_surface.get_rect()
         if center:
             text_rect.center = position
@@ -258,18 +300,94 @@ class Renderer:
             border_radius=10
         )
         self.draw_text(str(cell.value), cell.center)
+        self.draw_cell_label(cell)
+    
+    def draw_cell_label(self, cell: Cell) -> None:
+        if not cell.labels and not cell.pointers:
+            return
+
+        
+        label_y = cell.y + cell.height + 10
+        for i, label in enumerate(cell.labels):
+            self.draw_text(
+                label,
+                (cell.center[0], label_y + i * 20),
+                center=True,
+                font=self.code_font
+            )
+
+        
+        if cell.pointers:
+            pointer_y = cell.y - self.config.pointer_offset
+            combined_pointers = " ".join(cell.pointers)
+            
+            
+            self.draw_text(
+                combined_pointers,
+                (cell.center[0], pointer_y),
+                center=True,
+                font=self.code_font,
+                color=self.config.pointer_color
+            )
+            
+            
+            arrow_start = (cell.center[0], pointer_y + 15)
+            arrow_end = (cell.center[0], cell.y)
+            self.draw_straight_arrow(
+                arrow_start,
+                arrow_end,
+                ConnectorStyle(
+                    color=self.config.pointer_color,
+                    thickness=2,
+                    head_size=10
+                )
+            )
     
     def draw_connection(self, start_cell: Cell, end_cell: Cell, 
                        style: ConnectorStyle, curved: bool = True,
                        double_ended: bool = False) -> None:
+        
+        start_point = self._get_cell_edge_point(start_cell, end_cell)
+        end_point = self._get_cell_edge_point(end_cell, start_cell)
+        
         if curved:
-            self.draw_curved_arrow(start_cell.center, end_cell.center, style, double_ended=double_ended)
+            self.draw_curved_arrow(start_point, end_point, style, double_ended=double_ended)
         else:
-            self.draw_straight_arrow(start_cell.center, end_cell.center, style, double_ended=double_ended)
+            self.draw_straight_arrow(start_point, end_point, style, double_ended=double_ended)
     
-    def draw_rect(self, rect: pygame.Rect, color: Tuple[int, int, int], 
-                 border_width: int = 0) -> None:
-        pygame.draw.rect(self.screen, color, rect, border_width)
+    def _get_cell_edge_point(self, from_cell: Cell, to_cell: Cell) -> Tuple[int, int]:
+        """Calculate the point where the arrow should touch the cell's edge."""
+        from_center = from_cell.center
+        to_center = to_cell.center
+        
+        dx = to_center[0] - from_center[0]
+        dy = to_center[1] - from_center[1]
+        distance = math.sqrt(dx * dx + dy * dy)
+        
+        if distance == 0:
+            return from_center
+        
+        
+        dx, dy = dx / distance, dy / distance
+        
+        
+        half_width = from_cell.width / 2
+        half_height = from_cell.height / 2
+        
+        
+        if abs(dx) * half_height > abs(dy) * half_width:
+            
+            x_intersect = half_width if dx > 0 else -half_width
+            y_intersect = (x_intersect * dy) / dx
+        else:
+            
+            y_intersect = half_height if dy > 0 else -half_height
+            x_intersect = (y_intersect * dx) / dy
+        
+        return (
+            int(from_center[0] + x_intersect),
+            int(from_center[1] + y_intersect)
+        )
     
     def draw_straight_arrow(self, start: Tuple[int, int], end: Tuple[int, int], 
                           style: ConnectorStyle, double_ended: bool = False) -> None:
@@ -281,10 +399,10 @@ class Renderer:
         
         if length > 0:
             direction = (dx / length, dy / length)
-            self._draw_arrow_head(end, (-direction[0], -direction[1]), style)
+            self._draw_arrow_head(end, direction, style)
             
             if double_ended:
-                self._draw_arrow_head(start, direction, style)
+                self._draw_arrow_head(start, (-direction[0], -direction[1]), style)
     
     def draw_curved_arrow(self, start: Tuple[int, int], end: Tuple[int, int], 
                          style: ConnectorStyle, control_height: int = 100,
@@ -309,6 +427,7 @@ class Renderer:
         if len(points) > 1:
             pygame.draw.lines(self.screen, style.color, False, points, style.thickness)
             
+            
             end_direction = (
                 points[-1][0] - points[-2][0],
                 points[-1][1] - points[-2][1]
@@ -316,7 +435,7 @@ class Renderer:
             length = math.sqrt(end_direction[0]**2 + end_direction[1]**2)
             if length > 0:
                 end_direction = (end_direction[0]/length, end_direction[1]/length)
-                self._draw_arrow_head(points[-1], (-end_direction[0], -end_direction[1]), style)
+                self._draw_arrow_head(points[-1], end_direction, style)
                 
                 if double_ended:
                     start_direction = (
@@ -326,31 +445,32 @@ class Renderer:
                     length = math.sqrt(start_direction[0]**2 + start_direction[1]**2)
                     if length > 0:
                         start_direction = (start_direction[0]/length, start_direction[1]/length)
-                        self._draw_arrow_head(points[0], start_direction, style)
+                        self._draw_arrow_head(points[0], (-start_direction[0], -start_direction[1]), style)
     
     def _draw_arrow_head(self, point: Tuple[int, int], direction: Tuple[float, float], 
                         style: ConnectorStyle) -> None:
         perpendicular = (-direction[1], direction[0])
         
+        
         left_point = (
-            int(point[0] + style.head_size * (-direction[0] + 0.5 * perpendicular[0])),
-            int(point[1] + style.head_size * (-direction[1] + 0.5 * perpendicular[1]))
+            int(point[0] - style.head_size * (direction[0] + 0.5 * perpendicular[0])),
+            int(point[1] - style.head_size * (direction[1] + 0.5 * perpendicular[1]))
         )
         
         right_point = (
-            int(point[0] + style.head_size * (-direction[0] - 0.5 * perpendicular[0])),
-            int(point[1] + style.head_size * (-direction[1] - 0.5 * perpendicular[1]))
+            int(point[0] - style.head_size * (direction[0] - 0.5 * perpendicular[0])),
+            int(point[1] - style.head_size * (direction[1] - 0.5 * perpendicular[1]))
         )
         
         pygame.draw.polygon(self.screen, style.color, [point, left_point, right_point])
     
     def draw_self_pointing_arrow(self, center: Tuple[int, int], style: ConnectorStyle) -> None:
-        # Draw an arc above the cell that points downward
-        offset_y = -30  # Move up from the cell center
-        width = 30      # Width of the arc
-        height = 20     # Height of the arc
         
-        # Calculate control points for the arc
+        offset_y = -30  
+        width = 30      
+        height = 20     
+        
+        
         start_point = (center[0] - width//2, center[1] + offset_y)
         control_point = (center[0], center[1] + offset_y - height)
         end_point = (center[0] + width//2, center[1] + offset_y)
@@ -359,18 +479,18 @@ class Renderer:
         steps = 20
         for i in range(steps + 1):
             t = i / steps
-            # Quadratic Bezier curve
+            
             x = (1-t)**2 * start_point[0] + 2*(1-t)*t * control_point[0] + t**2 * end_point[0]
             y = (1-t)**2 * start_point[1] + 2*(1-t)*t * control_point[1] + t**2 * end_point[1]
             points.append((int(x), int(y)))
         
-        # Draw the arc
+        
         if len(points) > 1:
             pygame.draw.lines(self.screen, style.color, False, points, style.thickness)
             
-            # Draw arrow head pointing down to the cell
-            arrow_point = (center[0], center[1] - 5)  # Slightly above cell center
-            self._draw_arrow_head(arrow_point, (0, 1), style)  # Point downward
+            
+            arrow_point = (center[0], center[1] - 5)  
+            self._draw_arrow_head(arrow_point, (0, 1), style)  
     
     def update_display(self):
         pass
@@ -439,12 +559,16 @@ class DataStructureState:
         self.positions: Dict[int, Tuple[int, int]] = {}
         self.highlighted: List[int] = []
         self.arrows: List[Tuple[int, int]] = []
+        self.labels: Dict[int, List[str]] = {}  
+        self.pointers: Dict[int, List[str]] = {}  
     
     def interpolate(self, target_state: 'DataStructureState', progress: float) -> 'DataStructureState':
         result = DataStructureState()
         result.elements = target_state.elements.copy()
         result.highlighted = target_state.highlighted.copy()
         result.arrows = target_state.arrows.copy()
+        result.labels = target_state.labels.copy()
+        result.pointers = target_state.pointers.copy()
         
         for i in self.positions:
             if i in target_state.positions:

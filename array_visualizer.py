@@ -1,4 +1,4 @@
-from typing import List, Any, Optional, Tuple
+from typing import List, Any, Optional, Tuple, Dict
 from base_visualizer import Cell, ElementStyle, ConnectorStyle, Renderer, DataStructureState
 
 class ArrayVisualizer:
@@ -11,7 +11,9 @@ class ArrayVisualizer:
         self.current_state = DataStructureState()
     
     def create_state_from_array(self, array: List[int], highlighted: Optional[List[int]] = None, 
-                              arrows: Optional[List[Tuple[int, int]]] = None) -> DataStructureState:
+                              arrows: Optional[List[Tuple[int, int]]] = None,
+                              labels: Optional[Dict[int, List[str]]] = None,
+                              pointers: Optional[Dict[int, List[str]]] = None) -> DataStructureState:
         state = DataStructureState()
         state.elements = array.copy()
         
@@ -35,6 +37,12 @@ class ArrayVisualizer:
         if arrows:
             state.arrows = arrows.copy()
             
+        if labels:
+            state.labels = labels.copy()
+            
+        if pointers:
+            state.pointers = pointers.copy()
+            
         return state
     
     def draw_state(self, state: DataStructureState) -> None:
@@ -49,6 +57,13 @@ class ArrayVisualizer:
                           self.element_style.width,
                           self.element_style.height)
                 cell.highlighted = i in state.highlighted
+                
+                
+                if i in state.labels:
+                    cell.labels = state.labels[i]
+                if i in state.pointers:
+                    cell.pointers = state.pointers[i]
+                    
                 self.cells.append(cell)
                 self.renderer.draw_cell(cell, self.element_style)
         
@@ -78,6 +93,9 @@ class ArrayVisualizer:
         self.current_state = target_state
     
     def _animate_swap(self, array: List[int], idx1: int, idx2: int, hold_time: float = 2.0, draw_callback = None) -> List[int]:
+        """Swaps two elements in the array with animation.
+        Usage: {"action": "swap", "target": "array[0],array[1]"}
+        """
         initial_state = self.create_state_from_array(array, highlighted=[idx1, idx2])
         
         swapped_array = array.copy()
@@ -97,6 +115,11 @@ class ArrayVisualizer:
         return swapped_array
     
     def animate_operation(self, operation_name: str, *args, hold_time: float = 2.0, draw_callback = None, **kwargs) -> List[int]:
+        """Available operations:
+        - swap: Swaps two elements in the array
+        - highlight: Highlights specific elements
+        - compare: Shows comparison between elements
+        """
         if operation_name == "swap":
             return self._animate_swap(*args, hold_time=hold_time, draw_callback=draw_callback, **kwargs)
         return args[0]

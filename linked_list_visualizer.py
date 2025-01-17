@@ -12,6 +12,9 @@ class LinkedListOperation(ABC):
         pass
 
 class InsertOperation(LinkedListOperation):
+    """Inserts a new node at the specified position.
+    Usage: {"action": "insert", "target": "list[1]", "properties": {"value": 42}}
+    """
     def animate(self, visualizer: 'LinkedListVisualizer', head: Node, value: int, position: int, hold_time: float = 2.0, draw_callback = None) -> Node:
         new_node = Node(value)
         
@@ -47,6 +50,9 @@ class InsertOperation(LinkedListOperation):
         return head
 
 class DeleteOperation(LinkedListOperation):
+    """Deletes a node at the specified position.
+    Usage: {"action": "delete", "target": "list[1]"}
+    """
     def animate(self, visualizer: 'LinkedListVisualizer', head: Node, position: int, hold_time: float = 2.0, draw_callback = None) -> Node:
         if not head:
             return None

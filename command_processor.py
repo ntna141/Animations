@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional, Tuple, Union, Set
 from dataclasses import dataclass
 import json
 import re
-from base_visualizer import Renderer, ElementStyle, ConnectorStyle, DataStructureState
+from base_visualizer import Renderer, ElementStyle
 from array_visualizer import ArrayVisualizer
 from linked_list_visualizer import LinkedListVisualizer, Node
 
@@ -126,7 +126,9 @@ class CommandProcessor:
             target_state = visualizer.create_state_from_array(
                 command.state["elements"],
                 highlighted=command.state.get("highlighted", []),
-                arrows=command.state.get("arrows", [])
+                arrows=command.state.get("arrows", []),
+                labels=command.state.get("labels", {}),
+                pointers=command.state.get("pointers", {})
             )
             
             duration = float(command.duration.rstrip("s"))
