@@ -29,6 +29,7 @@ class DataStructure:
 class Frame:
     """Represents a single frame in the animation"""
     structures: Dict[str, DataStructure]  
+    variables: Dict[str, Any] = None  # Track algorithm variables like res=[], queue=[], etc.
     duration: str = "3s"  
     line: Optional[int] = None  
     text: Optional[str] = None  
@@ -38,6 +39,8 @@ class Frame:
     def __post_init__(self):
         if self.structures is None:
             self.structures = {}
+        if self.variables is None:
+            self.variables = {}
             
     @classmethod
     def from_array(cls, elements: List[Any], **kwargs) -> 'Frame':

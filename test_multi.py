@@ -86,14 +86,12 @@ def test_multi_visualization():
                 'array': DataStructure(
                     type="array",
                     elements=[1, 2, 3, 4, 5],
-                    self_arrows=[2],
-                    labels={2: ["pivot"]}
+                    pointers={2: ["pivot"]},
                 ),
                 'list': DataStructure(
                     type="linked_list",
                     elements=[1, 2, 3, 4, 5],
-                    self_arrows=[4],
-                    labels={4: ["tail"]}
+                    pointers={4: ["tail"]},
                 )
             },
             text="Self-pointing arrows in both structures"
