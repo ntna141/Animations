@@ -1,18 +1,15 @@
 from leetcode_visualizer import process_leetcode_solution
 
 solution = """
-def twoSum(self, nums, target):
-    seen = {}  # value -> index
-    
-    for i, num in enumerate(nums):
-        complement = target - num
-        
-        if complement in seen:
-            return [seen[complement], i]
-            
-        seen[num] = i
-    
-    return []  # No solution found
+class Solution:
+    def twoSum(self, nums: List[int], target: int) -> List[int]:
+        hashmap = {}
+        for i in range(len(nums)):
+            hashmap[nums[i]] = i
+        for i in range(len(nums)):
+            difference = target - nums[i]
+            if difference in hashmap and hashmap[difference] != i:
+                return [i, hashmap[difference]] 
 """
 
 process_leetcode_solution(solution, "two_sum.mp4") 

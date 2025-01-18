@@ -8,6 +8,7 @@ from langchain.schema import HumanMessage, SystemMessage
 from simple_visualizer import SimpleVisualizer, VisualizerConfig
 from frame import Frame, DataStructure
 from data_structures import Node
+from data_structure_examples import get_data_structure_examples, get_available_data_structures
 
 load_dotenv()
 chat_model = ChatAnthropic(
@@ -81,7 +82,7 @@ example_frames = '''[
     )
 ]'''
 
-def analyze_solution(solution_code: str) -> Tuple[str, Any, str]:
+def analyze_solution(solution_code: str) -> Tuple[List[str], Any, str]:
     system_message = SystemMessage(content="""You are a helpful coding assistant that analyzes algorithms.
 When generating visualizations:
 - Use arrows=[(i,j)] for curved arrows between different elements
@@ -90,12 +91,12 @@ When generating visualizations:
 - Use pointers={i: ["ptr"]} for pointers that appear above cells with vertical arrows""")
     
     prompt = PromptTemplate.from_template("""Analyze this LeetCode solution and determine:
-1. What data structure it primarily operates on (array or linked list)?
+1. What data structures that is used in the solution? List all data structures used from the list of available data structures: {available_data_structures}.
 2. What would be a good example input to demonstrate this algorithm? For arrays, provide just the numbers in brackets. For linked lists, use the Node(value)->Node(value) format.
 3. A brief description of what the solution does.
-
+                                          
 Format your response exactly like this:
-DATA_STRUCTURE: array or linked_list
+DATA_STRUCTURES: [array, linked_list, dict] (list all used)
 INITIAL_DATA: [1, 2, 3, 4] or Node(1)->Node(2)->Node(3)
 DESCRIPTION: Brief description
 
@@ -105,26 +106,41 @@ Here's the solution:
 
     message = chat_model.invoke([
         system_message,
-        HumanMessage(content=prompt.format(solution_code=solution_code))
+        HumanMessage(content=prompt.format(
+            solution_code=solution_code,
+            available_data_structures=get_available_data_structures()
+        ))
     ])
     
     response = message.content
     
-    data_structure = None
+    data_structures = []
     initial_data = None
     description = None
-    
+    print(response)
     for line in response.split('\n'):
-        if line.startswith('DATA_STRUCTURE:'):
-            data_structure = line.split(':')[1].strip()
+        if line.startswith('DATA_STRUCTURES:'):
+            try:
+                # Convert bare words to proper Python string literals
+                data_str = line.split(':')[1].strip()
+                if data_str.startswith('[') and data_str.endswith(']'):
+                    data_str = data_str[1:-1]  # Remove brackets
+                # Split by comma and clean up each item
+                items = [item.strip() for item in data_str.split(',')]
+                # Convert to proper Python list of strings
+                data_structures = items
+                print(f"Successfully parsed data structures: {data_structures}")
+            except Exception as e:
+                print(f"Error parsing data structures: {e}")
+                print(f"Raw data structures string: '{line}'")
+                # More reasonable default that includes dict if we see 'dict' in the string
+                if 'dict' in line.lower() or 'hashmap' in line.lower():
+                    data_structures = ['array', 'dict']
+                else:
+                    data_structures = ['array']
         elif line.startswith('INITIAL_DATA:'):
             raw_data = line.split(':')[1].strip()
-            if data_structure == "array":
-                try:
-                    initial_data = eval(raw_data)
-                except:
-                    initial_data = []
-            elif data_structure == "linked_list":
+            if 'Node' in raw_data:
                 try:
                     values = [int(x.split('(')[1].split(')')[0]) 
                              for x in raw_data.split('->')]
@@ -137,10 +153,15 @@ Here's the solution:
                         initial_data = head
                 except:
                     initial_data = Node(0)
+            else:
+                try:
+                    initial_data = eval(raw_data)
+                except:
+                    initial_data = []
         elif line.startswith('DESCRIPTION:'):
             description = line.split(':')[1].strip()
     
-    return data_structure, initial_data, description
+    return data_structures, initial_data, description
 
 def generate_walkthrough_script(solution_code: str, description: str) -> str:
     system_message = SystemMessage(content="""You are a patient and thorough coding tutor who explains algorithms through visual steps.
@@ -329,7 +350,7 @@ Return ONLY the Python list of Frame objects, nothing else.""")
         print(f"Error generating frames: {e}")
         return []
 
-def generate_visualization_frames(walkthrough_script: str, data_structure_type: str, solution_code: str) -> List[Frame]:
+def generate_visualization_frames(walkthrough_script: str, data_structures: List[str], solution_code: str) -> List[Frame]:
     system_message = SystemMessage(content="""You are a helpful coding assistant that converts walkthrough scripts into precise visualization frames.
 For merge sort specifically, use multiple arrays to show the division and merging process clearly.
 When using variables:
@@ -342,6 +363,10 @@ When using variables:
    - Important counters or values not easily shown in the visualization
 5. Don't track temporary loop variables or indices that aren't crucial to understanding""")
     
+    # Get example frames for all data structures used
+    examples = get_data_structure_examples(data_structures)
+    examples_str = str(examples).replace('\n', ' ')
+    
     prompt = PromptTemplate.from_template("""Here's a walkthrough script explaining an algorithm:
 
 {walkthrough_script}
@@ -352,28 +377,11 @@ For example, with merge sort, you should:
 2. Name the arrays meaningfully (e.g., 'left', 'right', 'left1', 'left2', etc.)
 3. Show the merging process by displaying both input arrays and the merged result
 
-Each frame should be created using this format:
+Here are example frames showing how to use each data structure:
 
-Frame(
-    structures={{
-        'main': DataStructure(
-            type="{data_structure_type}",
-            elements=[1, 2, 3],
-            highlighted=[0, 1],
-            arrows=[(0, 2)],
-            self_arrows=[1],
-            labels={{0: ["i"]}},
-            pointers={{1: ["L"]}}
-        )
-    }},
-    variables={{'res': [], 'queue': [1, 2, 3]}},  # Only use variables when needed:
-                                                 # - For collecting results (res = [])
-                                                 # - For algorithm-specific data structures (queue = [] in BFS)
-                                                 # - For values not easily shown in visualization
-                                                 # Don't duplicate information already shown by arrows/pointers
-    duration="3s",
-    text="We continue this process, always picking the smaller of the two elements we're comparing"
-)
+{examples}
+
+The algorithm uses these data structures: {data_structures}
 
 Requirements:
 1. Show the COMPLETE process of the algorithm using multiple data structures if needed
@@ -395,7 +403,8 @@ Return ONLY the Python list of Frame objects, nothing else.""")
         system_message,
         HumanMessage(content=prompt.format(
             walkthrough_script=walkthrough_script,
-            data_structure_type=data_structure_type
+            data_structures=data_structures,
+            examples=examples_str
         ))
     ])
     
@@ -403,7 +412,6 @@ Return ONLY the Python list of Frame objects, nothing else.""")
         response = message.content
         print("\nRaw Frames Generated:")
         print(response)
-        
         
         frames_str = response[response.find('['):response.rfind(']')+1]
         
@@ -425,8 +433,8 @@ Return ONLY the Python list of Frame objects, nothing else.""")
 
 def process_leetcode_solution(solution_code: str, output_file: str = "animation.mp4") -> None:
     print("\n=== Step 1: Analyzing Solution ===")
-    data_structure_type, initial_data, description = analyze_solution(solution_code)
-    print(f"Data Structure: {data_structure_type}")
+    data_structures, initial_data, description = analyze_solution(solution_code)
+    print(f"Data Structures: {data_structures}")
     print(f"Initial Data: {initial_data}")
     print(f"Description: {description}")
     
@@ -445,7 +453,7 @@ def process_leetcode_solution(solution_code: str, output_file: str = "animation.
     print(walkthrough_script)
     
     print("\n=== Step 5: Converting Script to Frames ===")
-    walkthrough_frames = generate_visualization_frames(walkthrough_script, data_structure_type, solution_code)
+    walkthrough_frames = generate_visualization_frames(walkthrough_script, data_structures, solution_code)
     print(f"Generated {len(walkthrough_frames)} walkthrough frames")
     
     print("\n=== Step 6: Creating Walkthrough Video ===")

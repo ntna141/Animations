@@ -6,6 +6,7 @@ import math
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 from frame import Frame, DataStructure
+from data_structures import Node
 
 @dataclass
 class VisualizerConfig:
@@ -21,8 +22,8 @@ class VisualizerConfig:
     label_color: Tuple[int, int, int] = (100, 100, 100)
     font_size: int = height // 35
     element_size: int = width // 8
-    element_spacing: int = width // 24
-    vertical_spacing: int = height // 8  
+    element_spacing: int = width // 12  # Increased spacing between elements
+    vertical_spacing: int = height // 8
 
 class SimpleVisualizer:
     def __init__(self, config: Optional[VisualizerConfig] = None):
@@ -43,12 +44,45 @@ class SimpleVisualizer:
         
     def draw_element(self, value: Any, x: int, y: int, highlighted: bool = False) -> pygame.Rect:
         """Draw a single element (box with value)"""
+        # For dictionary entries, draw as a simple text row
+        if isinstance(value, tuple) and len(value) == 2:
+            # Create text surfaces for key and value (without curly braces)
+            key_surface = self.font.render(str(value[0]), True, self.config.text_color)
+            separator_surface = self.font.render(": ", True, self.config.text_color)
+            value_surface = self.font.render(str(value[1]), True, self.config.text_color)
+            
+            # Calculate total width needed
+            total_width = (key_surface.get_width() + 
+                         separator_surface.get_width() + value_surface.get_width())
+            total_height = max(key_surface.get_height(), value_surface.get_height())
+            
+            # Create a rect for highlighting if needed
+            rect = pygame.Rect(x, y, total_width + 20, total_height + 10)  # Add padding
+            if highlighted:
+                pygame.draw.rect(self.screen, self.config.highlight_color, rect, border_radius=5)
+            
+            # Draw the text components
+            current_x = x + 10  # Start with padding
+            text_y = y + (total_height - key_surface.get_height()) // 2 + 5
+            
+            self.screen.blit(key_surface, (current_x, text_y))
+            current_x += key_surface.get_width()
+            self.screen.blit(separator_surface, (current_x, text_y))
+            current_x += separator_surface.get_width()
+            self.screen.blit(value_surface, (current_x, text_y))
+            
+            return rect
+            
+        # For other types, keep existing box drawing logic
         rect = pygame.Rect(x, y, self.config.element_size, self.config.element_size)
         color = self.config.highlight_color if highlighted else self.config.element_color
         pygame.draw.rect(self.screen, color, rect, border_radius=10)
         
-        
-        text_surface = self.font.render(str(value), True, self.config.text_color)
+        if isinstance(value, Node):
+            text_surface = self.font.render(str(value.value), True, self.config.text_color)
+        else:
+            text_surface = self.font.render(str(value), True, self.config.text_color)
+            
         text_rect = text_surface.get_rect(center=rect.center)
         self.screen.blit(text_surface, text_rect)
         
@@ -145,14 +179,33 @@ class SimpleVisualizer:
         if not pointers:
             return
             
+        # Remove duplicates while preserving order
+        unique_pointers = list(dict.fromkeys(pointers))
         
-        pointer_text = " ".join(pointers)
-        text_surface = self.font.render(pointer_text, True, self.config.pointer_color)
-        text_rect = text_surface.get_rect(centerx=rect.centerx, bottom=rect.top - 45)
-        self.screen.blit(text_surface, text_rect)
+        # Create text surfaces
+        text_surfaces = []
+        total_height = 0
         
+        # Create all text surfaces and calculate total height
+        for pointer in unique_pointers:  # Use unique_pointers instead of pointers
+            text_surface = self.font.render(pointer, True, self.config.pointer_color)
+            text_surfaces.append(text_surface)
+            total_height += text_surface.get_height()
         
-        arrow_start = (rect.centerx, text_rect.bottom + 10)
+        # Add spacing between texts
+        total_height += (len(text_surfaces) - 1) * 50
+        
+        # Position text starting from top
+        current_y = rect.top - 40 - total_height
+        
+        # Draw all text surfaces
+        for text_surface in text_surfaces:
+            text_rect = text_surface.get_rect(centerx=rect.centerx, top=current_y)
+            self.screen.blit(text_surface, text_rect)
+            current_y += text_surface.get_height() + 50
+            
+        # Draw single arrow for all text
+        arrow_start = (rect.centerx, rect.top - 30)
         arrow_end = (rect.centerx, rect.top)
         self.draw_arrow(arrow_start, arrow_end, curved=False)
         
@@ -160,26 +213,39 @@ class SimpleVisualizer:
         """Draw a single data structure (array or linked list)"""
         # Handle empty structure case
         if not structure.elements:
-            # Draw empty state message
-            text = "Empty Array"
+            text = "Empty Array" if structure.type == "array" else "Empty " + structure.type.capitalize()
             text_surface = self.font.render(text, True, self.config.text_color)
             text_rect = text_surface.get_rect(center=(self.config.width // 2, base_y))
             self.screen.blit(text_surface, text_rect)
             return []
 
-        # Fixed spacing of 15px between elements
-        spacing = 15
+        # Different spacing for different structure types
+        spacing = 40 if structure.type == "linked_list" else 15  # Fixed 40px spacing for linked lists
+        if structure.type == "dict":
+            spacing = 25  # Slightly larger spacing for dictionaries
+            
         num_elements = len(structure.elements)
         
-        # Calculate element size to make squares that fit within available width
-        available_width = self.config.width - 200  # Total width minus margins
-        spacing_total = spacing * (num_elements - 1)
-        element_size = min(
-            (available_width - spacing_total) // num_elements,  # Width-based size
-            self.config.height // 4  # Height-based limit to prevent too large squares
-        )
+        # Calculate element size to fit within available width
+        available_width = self.config.width - 120  # Total width minus margins
         
-        total_width = num_elements * (element_size + spacing) - spacing
+        # For linked list or dictionary, calculate size for single nodes
+        if structure.type in ["linked_list", "dict"]:
+            element_size = min(
+                (available_width - (num_elements - 1) * spacing) // num_elements,
+                self.config.height // 4
+            )
+            total_width = num_elements * element_size + (num_elements - 1) * spacing
+            
+            # Add extra space for braces if it's a dictionary
+            if structure.type == "dict":
+                total_width += self.config.font_size * 2  # Space for left and right braces
+        else:
+            element_size = min(
+                (available_width - (num_elements - 1) * spacing) // num_elements,
+                self.config.height // 4
+            )
+            total_width = num_elements * element_size + (num_elements - 1) * spacing
         
         # Use position if provided, otherwise center horizontally
         if structure.position:
@@ -187,36 +253,71 @@ class SimpleVisualizer:
         else:
             start_x = (self.config.width - total_width) // 2
             y = base_y
-        
+            
+        # Add extra left margin for dictionaries
+        if structure.type == "dict":
+            start_x = max(start_x, self.config.width // 10)  # Ensure minimum left margin
+            
+            # Draw opening brace with more spacing
+            brace_surface = self.font.render("{ ", True, self.config.text_color)  # Note the space after {
+            self.screen.blit(brace_surface, (start_x, y))
+            start_x += brace_surface.get_width() + 20  # Add extra spacing after brace
+
         element_rects = []
         for i, value in enumerate(structure.elements):
             x = start_x + i * (element_size + spacing)
-            # Create square rect with dynamic size
-            rect = pygame.Rect(x, y, element_size, element_size)
-            color = self.config.highlight_color if i in structure.highlighted else self.config.element_color
-            pygame.draw.rect(self.screen, color, rect, border_radius=10)
-            
-            text_surface = self.font.render(str(value), True, self.config.text_color)
-            text_rect = text_surface.get_rect(center=rect.center)
-            self.screen.blit(text_surface, text_rect)
-            
+            rect = self.draw_element(value, x, y, i in structure.highlighted)
             element_rects.append(rect)
             
             if i in structure.labels:
                 self.draw_labels(rect, structure.labels[i])
             if i in structure.pointers:
                 self.draw_pointers(rect, structure.pointers[i])
+
+        # Draw closing brace for dictionary with more spacing
+        if structure.type == "dict" and element_rects:
+            last_rect = element_rects[-1]
+            brace_surface = self.font.render(" }", True, self.config.text_color)  # Note the space before }
+            self.screen.blit(brace_surface, (last_rect.right + spacing, y))
+
+        # Draw arrows for linked list
+        if structure.type == "linked_list":
+            is_doubly = getattr(structure, "is_doubly", False)
+            
+            # Draw regular linked list arrows
+            for i in range(len(element_rects) - 1):
+                from_rect = element_rects[i]
+                to_rect = element_rects[i + 1]
                 
-        
-        for from_idx, to_idx in structure.arrows:
-            if 0 <= from_idx < len(element_rects) and 0 <= to_idx < len(element_rects):
+                # Draw forward arrow
+                start = (from_rect.right, from_rect.centery)
+                end = (to_rect.left, to_rect.centery)
+                self.draw_arrow(start, end, curved=False)
                 
-                curved = structure.type != "linked_list"
-                self.draw_arrow(
-                    element_rects[from_idx].center,
-                    element_rects[to_idx].center,
-                    curved=curved
-                )
+                # Draw backward arrow for doubly linked list
+                if is_doubly:
+                    start = (to_rect.left, to_rect.centery + 10)
+                    end = (from_rect.right, from_rect.centery + 10)
+                    self.draw_arrow(start, end, curved=False)
+            
+            # Draw self arrows (cycles)
+            if structure.self_arrows:
+                for idx in structure.self_arrows:
+                    if 0 <= idx < len(element_rects):
+                        rect = element_rects[idx]
+                        # Draw straight arrow to top edge
+                        start = (rect.centerx, rect.top - 30)
+                        end = (rect.centerx, rect.top)
+                        self.draw_arrow(start, end, curved=False)
+        else:
+            # For other structures (array and dict), keep center-to-center curved arrows
+            for from_idx, to_idx in structure.arrows:
+                if 0 <= from_idx < len(element_rects) and 0 <= to_idx < len(element_rects):
+                    self.draw_arrow(
+                        element_rects[from_idx].center,
+                        element_rects[to_idx].center,
+                        curved=True
+                    )
                 
         # Draw self-arrows with increased spacing
         if structure.self_arrows:
