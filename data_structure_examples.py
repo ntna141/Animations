@@ -164,27 +164,49 @@ def get_data_structure_examples(data_structures: List[str]) -> Dict[str, List[Fr
                 )
             ]
         elif ds_type == 'tree':
+            print("TREE IS CHOSEN")
             examples[ds_type] = [
-                Frame.from_tree(
-                    elements=[1, 2, 3, 4, 5, 6, 7],
-                    text="Starting with a complete binary tree",
+                # Basic tree visualization
+                Frame(
+                    structures={
+                        'main': DataStructure(
+                            type="tree",
+                            elements=[1, 2, 3, 4, 5, None, 7]
+                        )
+                    },
+                    text="Starting with a binary tree",
                     variables={'current': 1}
                 ),
-                Frame.from_tree(
-                    elements=[1, 2, 3, 4, 5, 6, 7],
-                    highlighted=[1, 2],  # Highlight nodes at level 1
-                    pointers={0: ["root"], 2: ["current"]},
-                    text="Traversing level 1 of the tree",
-                    variables={'current': 2}
+                
+                # Show highlighting and pointers
+                Frame(
+                    structures={
+                        'main': DataStructure(
+                            type="tree",
+                            elements=[1, 2, 3, 4, 5, None, 7],
+                            highlighted=[1, 4],  # Highlight current node and its child
+                            pointers={1: ["current"], 4: ["left"]},
+                            labels={1: ["parent"], 4: ["child"]}
+                        )
+                    },
+                    text="Traversing the tree, examining node relationships",
+                    variables={'visited': [1, 2, 4]}
                 ),
-                Frame.from_tree(
-                    elements=[1, 2, 3, 4, 5, 6, 7],
-                    highlighted=[2],
-                    arrows=[(0, 1), (1, 2)],  # Show path taken
-                    labels={2: ["target found"]},
-                    pointers={0: ["root"], 2: ["current"]},
-                    text="Found target node with value 3",
-                    variables={'current': 3}
+                
+                # Show relationships with arrows and multiple features
+                Frame(
+                    structures={
+                        'main': DataStructure(
+                            type="tree",
+                            elements=[1, 2, 3, 4, 5, None, 7],
+                            highlighted=[2, 3],  # Highlight sibling nodes
+                            arrows=[(0, 2), (0, 3)],  # Show parent-child relationships
+                            labels={2: ["left"], 3: ["right"]},
+                            pointers={0: ["root"], 2: ["current"]}
+                        )
+                    },
+                    text="Examining sibling relationships in the tree",
+                    variables={'path': [1, 2]}
                 )
             ]
         else:

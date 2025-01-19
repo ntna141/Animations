@@ -7,7 +7,7 @@ from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage, SystemMessage
 from simple_visualizer import SimpleVisualizer, VisualizerConfig
 from frame import Frame, DataStructure
-from data_structures import Node
+from data_structures import Node, TreeNode
 from data_structure_examples import get_data_structure_examples, get_available_data_structures
 
 load_dotenv()
@@ -16,71 +16,6 @@ chat_model = ChatAnthropic(
     model_name="claude-3-5-sonnet-20240620",
     max_tokens=8192
 )
-
-frame_format = '''
-Frame(
-    structures={
-        'main': DataStructure(
-            type="array",
-            elements=[1, 2, 3],
-            highlighted=[0, 1],  # Highlight cells
-            arrows=[(0, 2)],     # Curved arrows between different elements (e.g., showing relationships)
-            self_arrows=[1],     # Straight vertical arrows for self-references (e.g., current position)
-            labels={0: ["i"]},   # Labels appear below cells (e.g., variable names, values)
-            pointers={1: ["L"]}  # Pointers appear above cells with vertical arrows (e.g., L, R pointers)
-        )
-    },
-    variables={'res': [], 'left': 0, 'right': 2},  # Track algorithm variables
-    duration="3s",
-    line=5,
-    text="Description",
-    pre_duration="1s",
-    post_duration="2s"
-)'''
-
-example_frames = '''[
-    Frame(
-        structures={
-            'main': DataStructure(
-                type="array",
-                elements=[-4, -1, -1, 0, 1, 2],
-                highlighted=[0],
-                labels={0: ["anchor"]},  # Label below cell
-                pointers={0: ["i"]}      # Pointer above cell with vertical arrow
-            )
-        },
-        variables={'res': [], 'i': 0},
-        text="Let's start by looking at our array. We'll use -4 as our anchor point."
-    ),
-    Frame(
-        structures={
-            'main': DataStructure(
-                type="array",
-                elements=[-4, -1, -1, 0, 1, 2],
-                highlighted=[0, 1, 5],
-                pointers={0: ["i"], 1: ["L"], 5: ["R"]},  # All pointers use vertical arrows
-                labels={0: ["anchor"]}  # Labels appear below
-            )
-        },
-        variables={'res': [], 'i': 0, 'left': 1, 'right': 5},
-        text="We'll use two pointers, L and R, to find numbers that sum with our anchor to zero."
-    ),
-    Frame(
-        structures={
-            'main': DataStructure(
-                type="array",
-                elements=[-4, -1, -1, 0, 1, 2],
-                highlighted=[0, 1, 5],
-                arrows=[(1, 5)],  # Curved arrow showing relationship between L and R
-                pointers={0: ["i"], 1: ["L"], 5: ["R"]},  # Vertical arrows for pointers
-                labels={0: ["anchor"], 1: ["sum = -5"]}  # Labels below cells
-            )
-        },
-        variables={'res': [], 'i': 0, 'left': 1, 'right': 5, 'sum': -3},
-        line=5,
-        text="Current sum: -4 + (-1) + 2 = -3. This is too small, so we need to move L right."
-    )
-]'''
 
 def analyze_solution(solution_code: str) -> Tuple[List[str], Any, str]:
     system_message = SystemMessage(content="""You are a helpful coding assistant that analyzes algorithms.
@@ -166,7 +101,19 @@ Here's the solution:
 def generate_walkthrough_script(solution_code: str, description: str) -> str:
     system_message = SystemMessage(content="""You are a patient and thorough coding tutor who explains algorithms through visual steps.
 Create a step-by-step walkthrough that shows exactly how the algorithm works with a specific example, similar to watching an animation.
-Focus on showing the state of the data structure at each step and explaining what's happening, not on explaining the code itself.""")
+Focus on showing the state of the data structure at each step and explaining what's happening, not on explaining the code itself.
+
+For trees, always use array representation where:
+- Each node's value is at index i
+- Left child is at index 2i + 1
+- Right child is at index 2i + 2
+- Use None for missing nodes
+Example: [1, 2, 3, 4, None, 6, None] represents:
+    1
+   / \
+  2   3
+ /     \
+4       6""")
     
     prompt = PromptTemplate.from_template("""Create a step-by-step visual walkthrough of this algorithm:
 
@@ -222,7 +169,6 @@ def safe_eval_frames(frames_str: str) -> List[Frame]:
     
     frames_str = frames_str.strip()
     
-    
     if 'Frame(' not in frames_str[:10]:  
         start_idx = frames_str.find('[')
         if start_idx == -1:
@@ -230,15 +176,14 @@ def safe_eval_frames(frames_str: str) -> List[Frame]:
         frames_str = frames_str[start_idx:]
     
     try:
-        
         globals_dict = {
             'Frame': Frame,
             'DataStructure': DataStructure,
+            'TreeNode': TreeNode,
             'True': True,
             'False': False,
             'None': None
         }
-        
         
         local_dict = {}
         exec(f"frames = {frames_str}", globals_dict, local_dict)
@@ -361,7 +306,19 @@ When using variables:
    - Collecting results (e.g., res = [])
    - Data structures needed by the algorithm (e.g., queue = [] in BFS)
    - Important counters or values not easily shown in the visualization
-5. Don't track temporary loop variables or indices that aren't crucial to understanding""")
+5. Don't track temporary loop variables or indices that aren't crucial to understanding
+
+For trees, always use array representation where:
+- Each node's value is at index i
+- Left child is at index 2i + 1
+- Right child is at index 2i + 2
+- Use None for missing nodes
+Example: [1, 2, 3, 4, None, 6, None] represents:
+    1
+   / \
+  2   3
+ /     \
+4       6""")
     
     # Get example frames for all data structures used
     examples = get_data_structure_examples(data_structures)
@@ -413,18 +370,7 @@ Return ONLY the Python list of Frame objects, nothing else.""")
         print("\nRaw Frames Generated:")
         print(response)
         
-        frames_str = response[response.find('['):response.rfind(']')+1]
-        
-        frames_str = frames_str.replace('\n', ' ').strip()
-        namespace = {
-            'Frame': Frame,
-            'DataStructure': DataStructure,
-            'True': True,
-            'False': False,
-            'None': None,
-            'List': List
-        }
-        frames = eval(frames_str, namespace)
+        frames = safe_eval_frames(response)
         print(f"\nProcessed {len(frames)} frames")
         return frames
     except Exception as e:

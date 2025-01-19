@@ -183,12 +183,12 @@ class SimpleVisualizer:
     def draw_labels(self, rect: pygame.Rect, labels: List[str]):
         """Draw labels below an element"""
         y = rect.bottom + 5
-        for label in labels:
-            text_surface = self.font.render(label, True, self.config.label_color)
-            text_rect = text_surface.get_rect(centerx=rect.centerx, top=y)
-            self.screen.blit(text_surface, text_rect)
-            y += text_rect.height + 2
-            
+        # Join all labels with spaces and render as one line
+        text = " ".join(labels)
+        text_surface = self.font.render(text, True, self.config.label_color)
+        text_rect = text_surface.get_rect(centerx=rect.centerx, top=y)
+        self.screen.blit(text_surface, text_rect)
+        
     def draw_pointers(self, rect: pygame.Rect, pointers: List[str]):
         """Draw pointers above an element"""
         if not pointers:
@@ -603,7 +603,6 @@ class SimpleVisualizer:
                 self.config.width - 120,  # 60px padding on each side
                 self.config.height//6  # Taller rect for wrapped text
             )
-            pygame.draw.rect(self.screen, (245, 245, 245), text_rect, border_radius=20)
             self.drawText(
                 self.screen,
                 frame.text,

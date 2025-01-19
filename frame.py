@@ -26,6 +26,36 @@ class DataStructure:
             self.labels = {}
         if self.pointers is None:
             self.pointers = {}
+        
+        # Convert array to TreeNode if type is tree
+        if self.type == "tree" and isinstance(self.elements, list):
+            self.elements = self._array_to_tree(self.elements)
+
+    def _array_to_tree(self, elements: List[Any]) -> Optional[TreeNode]:
+        """Convert array representation to TreeNode structure"""
+        if not elements:
+            return None
+            
+        # Create all nodes first
+        nodes = []
+        for value in elements:
+            if value is not None:
+                nodes.append(TreeNode(value))
+            else:
+                nodes.append(None)
+                
+        # Connect the nodes
+        for i in range(len(nodes)):
+            if nodes[i] is not None:
+                left_idx = 2 * i + 1
+                right_idx = 2 * i + 2
+                
+                if left_idx < len(nodes):
+                    nodes[i].left = nodes[left_idx]
+                if right_idx < len(nodes):
+                    nodes[i].right = nodes[right_idx]
+                    
+        return nodes[0] if nodes else None
 
 @dataclass
 class Frame:
@@ -135,35 +165,7 @@ class Frame:
         
     @classmethod
     def from_tree(cls, elements: List[Any], **kwargs) -> 'Frame':
-        """Create a frame from a binary tree
-        
-        Args:
-            elements: List of values to create tree from, or a TreeNode root
-            **kwargs: Additional frame parameters
-            
-        Returns:
-            Frame object configured to display the binary tree
-        """
-        # Convert array input into tree nodes
-        if elements and not isinstance(elements[0], TreeNode):
-            nodes = []
-            for i, value in enumerate(elements):
-                if value is not None:
-                    nodes.append(TreeNode(value))
-                else:
-                    nodes.append(None)
-                    
-            # Link the nodes (using level order / array representation)
-            for i in range(len(nodes)):
-                if nodes[i] is not None:
-                    left_idx = 2 * i + 1
-                    right_idx = 2 * i + 2
-                    if left_idx < len(nodes):
-                        nodes[i].left = nodes[left_idx]
-                    if right_idx < len(nodes):
-                        nodes[i].right = nodes[right_idx]
-            elements = nodes[0] if nodes else None
-            
+        """Create a frame from a tree structure"""
         structure = DataStructure(
             type="tree",
             elements=elements,

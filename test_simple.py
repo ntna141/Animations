@@ -217,28 +217,43 @@ def test_tree_visualization():
     # Complete binary tree test
     frames = [
         # Basic tree visualization
-        Frame.from_tree(
-            elements=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        Frame(
+            structures={
+                'main': DataStructure(
+                    type="tree",
+                    elements=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+                )
+            },
             text="Starting with a complete binary tree with 4 levels",
             variables={'root': 1}
         ),
         
         # Highlighting nodes with pointers
-        Frame.from_tree(
-            elements=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-            highlighted=[1, 2],  # Highlight nodes at level 1
-            pointers={0: ["root"], 2: ["current"]},
+        Frame(
+            structures={
+                'main': DataStructure(
+                    type="tree",
+                    elements=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+                    highlighted=[1, 2],  # Highlight nodes at level 1
+                    pointers={0: ["root"], 2: ["current"]}
+                )
+            },
             text="Traversing level 1 of the tree",
             variables={'current': 3}
         ),
         
         # Showing path with arrows
-        Frame.from_tree(
-            elements=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-            highlighted=[2],
-            arrows=[(0, 1), (1, 2)],  # Show path taken
-            labels={2: ["target found"]},
-            pointers={0: ["root"], 2: ["current"]},
+        Frame(
+            structures={
+                'main': DataStructure(
+                    type="tree",
+                    elements=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+                    highlighted=[2],
+                    arrows=[(0, 1), (1, 2)],  # Show path taken
+                    labels={2: ["target found"]},
+                    pointers={0: ["root"], 2: ["current"]}
+                )
+            },
             text="Found target node with value 3",
             variables={'current': 3}
         ),
@@ -249,41 +264,61 @@ def test_tree_visualization():
     # Unbalanced tree test
     unbalanced_frames = [
         # Basic unbalanced tree
-        Frame.from_tree(
-            elements=[1, 2, 3, 4, None, 6, None, 8, 9, None, None, None, None, None, None, 16, None, None, None],
+        Frame(
+            structures={
+                'main': DataStructure(
+                    type="tree",
+                    elements=[1, 2, 3, 4, None, 6, None, 8, 9, None, None, None, None, None, None, 16]
+                )
+            },
             text="Starting with an unbalanced binary tree",
             variables={'root': 1}
         ),
         
         # Highlighting deep path
-        Frame.from_tree(
-            elements=[1, 2, 3, 4, None, 6, None, 8, 9, None, None, None, None, None, None, 16, None, None, None],
-            highlighted=[0, 1, 3, 7, 15],  # Highlight path to deepest node
-            arrows=[(0, 1), (1, 3), (3, 7), (7, 15)],  # Show path
-            labels={15: ["deepest node"]},
-            pointers={0: ["root"], 15: ["current"]},
+        Frame(
+            structures={
+                'main': DataStructure(
+                    type="tree",
+                    elements=[1, 2, 3, 4, None, 6, None, 8, 9, None, None, None, None, None, None, 16],
+                    highlighted=[0, 1, 3, 7, 15],  # Highlight path to deepest node
+                    arrows=[(0, 1), (1, 3), (3, 7), (7, 15)],  # Show path
+                    labels={15: ["deepest node"]},
+                    pointers={0: ["root"], 15: ["current"]}
+                )
+            },
             text="Found deepest node at level 4",
             variables={'depth': 4}
         ),
         
         # Show left-heavy subtree
-        Frame.from_tree(
-            elements=[1, 2, 3, 4, None, 6, None, 8, 9, None, None, None, None, None, None, 16, None, None, None],
-            highlighted=[1, 3, 7, 8],  # Highlight left-heavy part
-            arrows=[(1, 3), (3, 7), (3, 8)],  # Show connections
-            labels={1: ["height=4"], 3: ["height=3"]},
-            pointers={1: ["unbalanced"]},
+        Frame(
+            structures={
+                'main': DataStructure(
+                    type="tree",
+                    elements=[1, 2, 3, 4, None, 6, None, 8, 9, None, None, None, None, None, None, 16],
+                    highlighted=[1, 3, 7, 8],  # Highlight left-heavy part
+                    arrows=[(1, 3), (3, 7), (3, 8)],  # Show connections
+                    labels={1: ["height=4"], 3: ["height=3"]},
+                    pointers={1: ["unbalanced"]}
+                )
+            },
             text="Left subtree is deeper than right subtree",
             variables={'left_height': 4, 'right_height': 1}
         ),
         
         # Multiple features combined
-        Frame.from_tree(
-            elements=[1, 2, 3, 4, None, 6, None, 8, 9, None, None, None, None, None, None, 16, None, None, None],
-            highlighted=[3, 7, 8],
-            arrows=[(7, 8)],  # Show sibling relationship
-            labels={3: ["parent"], 7: ["left"], 8: ["right"]},
-            pointers={3: ["p"], 7: ["l"], 8: ["r"]},
+        Frame(
+            structures={
+                'main': DataStructure(
+                    type="tree",
+                    elements=[1, 2, 3, 4, None, 6, None, 8, 9, None, None, None, None, None, None, 16],
+                    highlighted=[3, 7, 8],
+                    arrows=[(7, 8)],  # Show sibling relationship
+                    labels={3: ["parent"], 7: ["left"], 8: ["right"]},
+                    pointers={3: ["p"], 7: ["l"], 8: ["r"]}
+                )
+            },
             text="Examining siblings in the unbalanced subtree",
             variables={'parent': 4}
         )
