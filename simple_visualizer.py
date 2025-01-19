@@ -6,7 +6,7 @@ import math
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 from frame import Frame, DataStructure
-from data_structures import Node
+from data_structures import Node, TreeNode
 
 @dataclass
 class VisualizerConfig:
@@ -44,9 +44,9 @@ class SimpleVisualizer:
         
     def draw_element(self, value: Any, x: int, y: int, highlighted: bool = False) -> pygame.Rect:
         """Draw a single element (box with value)"""
-        # For dictionary entries, draw as a simple text row
+        # For dictionary entries or set elements, draw as a simple text row
         if isinstance(value, tuple) and len(value) == 2:
-            # Create text surfaces for key and value (without curly braces)
+            # Create text surfaces for key and value
             key_surface = self.font.render(str(value[0]), True, self.config.text_color)
             separator_surface = self.font.render(": ", True, self.config.text_color)
             value_surface = self.font.render(str(value[1]), True, self.config.text_color)
@@ -72,21 +72,33 @@ class SimpleVisualizer:
             self.screen.blit(value_surface, (current_x, text_y))
             
             return rect
+        elif isinstance(value, (Node, TreeNode)):
+            # For linked list nodes and tree nodes, draw boxes
+            rect = pygame.Rect(x, y, self.config.element_size, self.config.element_size)
+            color = self.config.highlight_color if highlighted else (255, 255, 255)
+            pygame.draw.rect(self.screen, color, rect, border_radius=10)
+            pygame.draw.rect(self.screen, (0, 0, 0), rect, border_radius=10, width=2)
             
-        # For other types, keep existing box drawing logic
-        rect = pygame.Rect(x, y, self.config.element_size, self.config.element_size)
-        color = self.config.highlight_color if highlighted else self.config.element_color
-        pygame.draw.rect(self.screen, color, rect, border_radius=10)
-        
-        if isinstance(value, Node):
             text_surface = self.font.render(str(value.value), True, self.config.text_color)
-        else:
-            text_surface = self.font.render(str(value), True, self.config.text_color)
+            text_rect = text_surface.get_rect(center=rect.center)
+            self.screen.blit(text_surface, text_rect)
             
-        text_rect = text_surface.get_rect(center=rect.center)
-        self.screen.blit(text_surface, text_rect)
-        
-        return rect
+            return rect
+        else:
+            # For set elements and other types, draw as simple text
+            text_surface = self.font.render(str(value), True, self.config.text_color)
+            total_height = text_surface.get_height()
+            
+            # Create a rect for highlighting if needed
+            rect = pygame.Rect(x, y, text_surface.get_width() + 20, total_height + 10)  # Add padding
+            if highlighted:
+                pygame.draw.rect(self.screen, self.config.highlight_color, rect, border_radius=5)
+            
+            # Draw the text
+            text_y = y + 5  # Add small padding
+            self.screen.blit(text_surface, (x + 10, text_y))
+            
+            return rect
         
     def draw_arrow(self, start: Tuple[int, int], end: Tuple[int, int], curved: bool = True):
         """Draw an arrow between two points"""
@@ -212,41 +224,242 @@ class SimpleVisualizer:
         arrow_end = (rect.centerx, rect.top)
         self.draw_arrow(arrow_start, arrow_end, curved=False)
         
+    def get_node_at_index(self, root: TreeNode, node_idx: int) -> Optional[TreeNode]:
+        """Get the node at a given index in the binary tree
+        
+        Args:
+            root: Root node of the tree
+            node_idx: Index of the node to find (0-based)
+            
+        Returns:
+            The node at the given index, or None if not found
+        """
+        if node_idx == 0:
+            return root
+            
+        # Calculate path to node
+        path = []
+        temp_idx = node_idx
+        while temp_idx > 0:
+            path.append(temp_idx % 2)  # 0 for left, 1 for right
+            temp_idx = (temp_idx - 1) // 2
+        path.reverse()
+        
+        # Follow path to node
+        current = root
+        for direction in path:
+            if current is None:
+                return None
+            current = current.right if direction else current.left
+            
+        return current
+        
+    def collect_nodes_by_level(self, root: TreeNode, level: int = 0, node_idx: int = 0, 
+                               nodes_by_level: Dict[int, List[Tuple[int, TreeNode]]] = None) -> Dict[int, List[Tuple[int, TreeNode]]]:
+        """Collect all nodes in the tree by level, including their indices
+        
+        Args:
+            root: Root node of the tree
+            level: Current level
+            node_idx: Current node's index in the tree
+            nodes_by_level: Dictionary mapping level to list of (index, node) pairs
+            
+        Returns:
+            Dictionary mapping level to list of (index, node) pairs
+        """
+        if nodes_by_level is None:
+            nodes_by_level = {}
+            
+        if not root:
+            return nodes_by_level
+            
+        if level not in nodes_by_level:
+            nodes_by_level[level] = []
+            
+        # Store node with its tree index
+        nodes_by_level[level].append((node_idx, root))
+        
+        # Process children with their correct indices
+        if root.left:
+            self.collect_nodes_by_level(root.left, level + 1, 2*node_idx + 1, nodes_by_level)
+        if root.right:
+            self.collect_nodes_by_level(root.right, level + 1, 2*node_idx + 2, nodes_by_level)
+            
+        return nodes_by_level
+        
+    def draw_tree(self, root: TreeNode, x: int, y: int, level_width: int, highlighted: List[int], 
+                  labels: Dict[int, List[str]], pointers: Dict[int, List[str]], node_idx: int = 0, level: int = 0) -> List[pygame.Rect]:
+        """Draw a binary tree recursively"""
+        if not root:
+            return []
+            
+        # Use fixed node size of 70px
+        self.config.element_size = 70
+            
+        # First collect all nodes by level with their tree indices
+        nodes_by_level = self.collect_nodes_by_level(root)
+        rect_map = {}  # Will store node_idx to rect mapping
+        all_rects = []
+        
+        # Calculate the maximum number of possible nodes at each level
+        max_nodes_at_level = {level: 2**level for level in range(len(nodes_by_level))}
+        
+        # Draw each level
+        for level, nodes in sorted(nodes_by_level.items()):
+            if not nodes:
+                continue
+                
+            # Calculate level width based on maximum possible nodes at this level
+            level_width = self.config.width - 120  # Leave margins
+            node_spacing = level_width / max_nodes_at_level[level]
+            
+            # Draw nodes at this level
+            for node_idx, node in nodes:
+                # Calculate position based on node's index in complete tree
+                relative_pos = node_idx - (2**level - 1)  # Position within level
+                node_x = 60 + node_spacing * relative_pos + node_spacing/2 - self.config.element_size/2
+                node_y = y + level * self.config.vertical_spacing * 0.8
+                
+                # Draw node
+                rect = self.draw_element(node, node_x, node_y, node_idx in highlighted)
+                rect_map[node_idx] = rect
+                all_rects.append(rect)
+                
+                # Draw labels and pointers
+                if node_idx in labels:
+                    self.draw_labels(rect, labels[node_idx])
+                if node_idx in pointers:
+                    self.draw_pointers(rect, pointers[node_idx])
+                    
+                # Draw connection to parent (except for root)
+                if level > 0:
+                    parent_idx = (node_idx - 1) // 2
+                    if parent_idx in rect_map:
+                        parent_rect = rect_map[parent_idx]
+                        pygame.draw.line(self.screen, self.config.arrow_color,
+                                       parent_rect.midbottom, rect.midtop, 2)
+        
+        return all_rects
+        
+    def get_tree_width_by_level(self, root: TreeNode, level: int = 0, width_by_level: Dict[int, int] = None) -> Dict[int, int]:
+        """Calculate number of nodes at each level of the tree
+        
+        Args:
+            root: Root node of the tree
+            level: Current level
+            width_by_level: Dictionary tracking number of nodes at each level
+            
+        Returns:
+            Dictionary mapping level to number of nodes at that level
+        """
+        if width_by_level is None:
+            width_by_level = {}
+            
+        if not root:
+            return width_by_level
+            
+        width_by_level[level] = width_by_level.get(level, 0) + 1
+        
+        if root.left:
+            self.get_tree_width_by_level(root.left, level + 1, width_by_level)
+        if root.right:
+            self.get_tree_width_by_level(root.right, level + 1, width_by_level)
+            
+        return width_by_level
+        
     def draw_structure(self, structure: DataStructure, base_y: int) -> List[pygame.Rect]:
-        """Draw a single data structure (array or linked list)"""
+        """Draw a single data structure (array, linked list, or tree)"""
         # Handle empty structure case
         if not structure.elements:
-            text = "Empty Array" if structure.type == "array" else "Empty " + structure.type.capitalize()
+            text = "Empty " + structure.type.capitalize()
             text_surface = self.font.render(text, True, self.config.text_color)
             text_rect = text_surface.get_rect(center=(self.config.width // 2, base_y))
             self.screen.blit(text_surface, text_rect)
             return []
+            
+        # Handle tree structure
+        if structure.type == "tree":
+            root = structure.elements
+            if not root:
+                return []
+                
+            # Calculate width needed for each level
+            width_by_level = self.get_tree_width_by_level(root)
+            max_width = max(width_by_level.values())
+            
+            # Calculate element size similar to array calculation
+            available_width = self.config.width - 120  # Total width minus margins
+            min_spacing = 20  # Minimum spacing between nodes
+            element_size = min(
+                (available_width - (max_width - 1) * min_spacing) // max_width,
+                60  # Maximum size of 60px
+            )
+            
+            # Store original element size
+            original_element_size = self.config.element_size
+            # Temporarily set element size for tree
+            self.config.element_size = element_size
+                
+            # Calculate initial position for root
+            start_x = self.config.width // 2
+            y = self.config.height // 6
+            initial_width = self.config.width // 2.5
+            
+            # Draw tree recursively
+            element_rects = self.draw_tree(
+                root, start_x, y, initial_width,
+                structure.highlighted or [],
+                structure.labels or {},
+                structure.pointers or {}
+            )
+            
+            # Draw any additional arrows between nodes
+            for from_idx, to_idx in structure.arrows or []:
+                if 0 <= from_idx < len(element_rects) and 0 <= to_idx < len(element_rects):
+                    self.draw_arrow(
+                        element_rects[from_idx].center,
+                        element_rects[to_idx].center,
+                        curved=True
+                    )
+                    
+            # Draw any self arrows
+            for idx in structure.self_arrows or []:
+                if 0 <= idx < len(element_rects):
+                    rect = element_rects[idx]
+                    start = (rect.centerx, rect.top - 30)
+                    end = (rect.centerx, rect.top)
+                    self.draw_arrow(start, end, curved=False)
+            
+            # Restore original element size
+            self.config.element_size = original_element_size
+                    
+            return element_rects
 
         # Different spacing for different structure types
         spacing = 40 if structure.type == "linked_list" else 15  # Fixed 40px spacing for linked lists
-        if structure.type == "dict":
-            spacing = 25  # Slightly larger spacing for dictionaries
+        if structure.type in ["dict", "set"]:
+            spacing = 25  # Slightly larger spacing for dictionaries and sets
             
         num_elements = len(structure.elements)
         
         # Calculate element size to fit within available width
         available_width = self.config.width - 120  # Total width minus margins
         
-        # For linked list or dictionary, calculate size for single nodes
-        if structure.type in ["linked_list", "dict"]:
+        # For linked list, dictionary, or set, calculate size for single nodes
+        if structure.type in ["linked_list", "dict", "set"]:
             element_size = min(
                 (available_width - (num_elements - 1) * spacing) // num_elements,
-                self.config.height // 4
+                60  # Maximum size of 60px
             )
             total_width = num_elements * element_size + (num_elements - 1) * spacing
             
-            # Add extra space for braces if it's a dictionary
-            if structure.type == "dict":
+            # Add extra space for braces if it's a dictionary or set
+            if structure.type in ["dict", "set"]:
                 total_width += self.config.font_size * 2  # Space for left and right braces
         else:
             element_size = min(
                 (available_width - (num_elements - 1) * spacing) // num_elements,
-                self.config.height // 4
+                60  # Maximum size of 60px
             )
             total_width = num_elements * element_size + (num_elements - 1) * spacing
         
@@ -257,8 +470,8 @@ class SimpleVisualizer:
             start_x = (self.config.width - total_width) // 2
             y = base_y
             
-        # Add extra left margin for dictionaries
-        if structure.type == "dict":
+        # Add extra left margin for dictionaries and sets
+        if structure.type in ["dict", "set"]:
             start_x = max(start_x, self.config.width // 10)  # Ensure minimum left margin
             
             # Draw opening brace with more spacing
@@ -272,13 +485,18 @@ class SimpleVisualizer:
             rect = self.draw_element(value, x, y, i in structure.highlighted)
             element_rects.append(rect)
             
+            # Add commas between elements for sets and dictionaries
+            if (structure.type == "set" or structure.type == "dict") and i < num_elements - 1:
+                comma_surface = self.font.render(", ", True, self.config.text_color)
+                self.screen.blit(comma_surface, (rect.right + 5, y))
+            
             if i in structure.labels:
                 self.draw_labels(rect, structure.labels[i])
             if i in structure.pointers:
                 self.draw_pointers(rect, structure.pointers[i])
 
-        # Draw closing brace for dictionary with more spacing
-        if structure.type == "dict" and element_rects:
+        # Draw closing brace for dictionary and set with more spacing
+        if structure.type in ["dict", "set"] and element_rects:
             last_rect = element_rects[-1]
             brace_surface = self.font.render(" }", True, self.config.text_color)  # Note the space before }
             self.screen.blit(brace_surface, (last_rect.right + spacing, y))
@@ -313,7 +531,7 @@ class SimpleVisualizer:
                         end = (rect.centerx, rect.top)
                         self.draw_arrow(start, end, curved=False)
         else:
-            # For other structures (array and dict), keep center-to-center curved arrows
+            # For other structures (array, dict, and set), keep center-to-center curved arrows
             for from_idx, to_idx in structure.arrows:
                 if 0 <= from_idx < len(element_rects) and 0 <= to_idx < len(element_rects):
                     self.draw_arrow(

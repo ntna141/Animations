@@ -133,6 +133,60 @@ def get_data_structure_examples(data_structures: List[str]) -> Dict[str, List[Fr
                     text="Found duplicate values: nums[1] and nums[2] both equal -1"
                 )
             ]
+        elif ds_type == 'set':
+            examples[ds_type] = [
+                Frame(
+                    structures={
+                        'main': DataStructure(
+                            type="set",
+                            elements=[1, 3, 5, 7],
+                            highlighted=[0],  # Highlights first element
+                            pointers={0: ["current"]},
+                            labels={0: ["checking"]}
+                        )
+                    },
+                    variables={'seen': {1}},
+                    text="Examining first element in the set"
+                ),
+                Frame(
+                    structures={
+                        'main': DataStructure(
+                            type="set",
+                            elements=[1, 3, 5, 7],
+                            highlighted=[1, 2],  # Highlights two elements
+                            arrows=[(1, 2)],  # Shows relationship between elements
+                            labels={1: ["found"], 2: ["target"]},
+                            pointers={1: ["prev"], 2: ["current"]}
+                        )
+                    },
+                    variables={'seen': {1, 3}},
+                    text="Found target value in the set"
+                )
+            ]
+        elif ds_type == 'tree':
+            examples[ds_type] = [
+                Frame.from_tree(
+                    elements=[1, 2, 3, 4, 5, 6, 7],
+                    text="Starting with a complete binary tree",
+                    variables={'current': 1}
+                ),
+                Frame.from_tree(
+                    elements=[1, 2, 3, 4, 5, 6, 7],
+                    highlighted=[1, 2],  # Highlight nodes at level 1
+                    pointers={0: ["root"], 2: ["current"]},
+                    text="Traversing level 1 of the tree",
+                    variables={'current': 2}
+                ),
+                Frame.from_tree(
+                    elements=[1, 2, 3, 4, 5, 6, 7],
+                    highlighted=[2],
+                    arrows=[(0, 1), (1, 2)],  # Show path taken
+                    labels={2: ["target found"]},
+                    pointers={0: ["root"], 2: ["current"]},
+                    text="Found target node with value 3",
+                    variables={'current': 3}
+                )
+            ]
         else:
             raise ValueError(f"Unsupported data structure type: {ds_type}")
             
@@ -144,4 +198,4 @@ def get_available_data_structures() -> List[str]:
     Returns:
         List of supported data structure type strings
     """
-    return ['array', 'linked_list', 'doubly_linked_list', 'dict'] 
+    return ['array', 'linked_list', 'doubly_linked_list', 'dict', 'set', 'tree'] 

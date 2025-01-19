@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple, Any, Union
-from data_structures import Node
+from data_structures import Node, TreeNode
 
 @dataclass
 class DataStructure:
@@ -99,6 +99,73 @@ class Frame:
         
         structure = DataStructure(
             type="dict",
+            elements=elements,
+            highlighted=kwargs.pop('highlighted', None),
+            arrows=kwargs.pop('arrows', None),
+            self_arrows=kwargs.pop('self_arrows', None),
+            labels=kwargs.pop('labels', None),
+            pointers=kwargs.pop('pointers', None)
+        )
+        return cls(structures={'main': structure}, **kwargs)
+        
+    @classmethod
+    def from_set(cls, set_elements: set, **kwargs) -> 'Frame':
+        """Create a frame from a set
+        
+        Args:
+            set_elements: The set to visualize
+            **kwargs: Additional frame parameters
+            
+        Returns:
+            Frame object configured to display the set
+        """
+        # Convert set into sorted list for consistent visualization
+        elements = sorted(list(set_elements))
+        
+        structure = DataStructure(
+            type="set",
+            elements=elements,
+            highlighted=kwargs.pop('highlighted', None),
+            arrows=kwargs.pop('arrows', None),
+            self_arrows=kwargs.pop('self_arrows', None),
+            labels=kwargs.pop('labels', None),
+            pointers=kwargs.pop('pointers', None)
+        )
+        return cls(structures={'main': structure}, **kwargs)
+        
+    @classmethod
+    def from_tree(cls, elements: List[Any], **kwargs) -> 'Frame':
+        """Create a frame from a binary tree
+        
+        Args:
+            elements: List of values to create tree from, or a TreeNode root
+            **kwargs: Additional frame parameters
+            
+        Returns:
+            Frame object configured to display the binary tree
+        """
+        # Convert array input into tree nodes
+        if elements and not isinstance(elements[0], TreeNode):
+            nodes = []
+            for i, value in enumerate(elements):
+                if value is not None:
+                    nodes.append(TreeNode(value))
+                else:
+                    nodes.append(None)
+                    
+            # Link the nodes (using level order / array representation)
+            for i in range(len(nodes)):
+                if nodes[i] is not None:
+                    left_idx = 2 * i + 1
+                    right_idx = 2 * i + 2
+                    if left_idx < len(nodes):
+                        nodes[i].left = nodes[left_idx]
+                    if right_idx < len(nodes):
+                        nodes[i].right = nodes[right_idx]
+            elements = nodes[0] if nodes else None
+            
+        structure = DataStructure(
+            type="tree",
             elements=elements,
             highlighted=kwargs.pop('highlighted', None),
             arrows=kwargs.pop('arrows', None),
