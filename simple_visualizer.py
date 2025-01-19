@@ -90,13 +90,12 @@ class SimpleVisualizer:
         
     def draw_arrow(self, start: Tuple[int, int], end: Tuple[int, int], curved: bool = True):
         """Draw an arrow between two points"""
-        # Adjust start and end points to be at the top edge
-        start = (start[0], start[1] - self.config.element_size // 2)  # Move up by half element height
-        end = (end[0], end[1] - self.config.element_size // 2)  # Move up by half element height
-        
-        if curved:
-            # Increase the curve height by lowering the control point
-            control_y = min(start[1], end[1]) - 100  # Increased from -50 to -100
+        if curved and start != end:  # Only adjust height for curved arrows between different points
+            # Adjust start and end points to be at the top edge
+            start = (start[0], start[1] - self.config.element_size // 2)
+            end = (end[0], end[1] - self.config.element_size // 2)
+            
+            control_y = min(start[1], end[1]) - 100
             control_point = ((start[0] + end[0]) // 2, control_y)
             
             points = []
@@ -126,7 +125,7 @@ class SimpleVisualizer:
                      points[-1][1] - head_length * math.sin(angle - head_angle))
                 ])
         else:
-            
+            # Use original points for straight arrows and self-arrows
             pygame.draw.line(self.screen, self.config.arrow_color, start, end, 2)
             
             
