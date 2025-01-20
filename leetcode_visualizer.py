@@ -9,8 +9,14 @@ from simple_visualizer import SimpleVisualizer, VisualizerConfig
 from frame import Frame, DataStructure
 from data_structures import Node, TreeNode
 from data_structure_examples import get_data_structure_examples, get_available_data_structures
+from elevenlabs.client import ElevenLabs
+from elevenlabs import VoiceSettings
+from moviepy.video.io.VideoFileClip import VideoFileClip
+from moviepy.audio.io.AudioFileClip import AudioFileClip
+from moviepy.audio.AudioClip import CompositeAudioClip
 
 load_dotenv()
+client = ElevenLabs(api_key=os.getenv('ELEVENLABS_API_KEY'))
 chat_model = ChatAnthropic(
     api_key=os.getenv('ANTHROPIC_API_KEY'),
     model_name="claude-3-5-sonnet-20240620",
@@ -202,7 +208,7 @@ When using variables in the visualization:
 1. Only track variables that help explain the core concept
 2. Prefer visual elements (arrows, highlights, labels) over variables
 3. Use variables for:
-   - Result collections that show what we're building
+   - Result collections that show what's being built
    - Algorithm-specific data structures (queue in BFS, stack in DFS)
    - Important values that can't be shown visually
 4. Don't track variables that are already shown with visual elements
@@ -377,21 +383,88 @@ Return ONLY the Python list of Frame objects, nothing else.""")
         print(f"Error generating frames: {e}")
         return []
 
+def generate_narration(text: str, output_file: str = "narration.mp3") -> float:
+    """Generate voice narration using ElevenLabs API and return duration."""
+    try:
+        # Convert text to speech using the new API pattern
+        response = client.text_to_speech.convert(
+            voice_id="pNInz6obpgDQGcFmaJgB",  # Using Adam voice
+            output_format="mp3_22050_32",
+            text=text,
+            model_id="eleven_turbo_v2_5",  # Using turbo model for low latency
+            voice_settings=VoiceSettings(
+                stability=0.0,
+                similarity_boost=1.0,
+                style=0.0,
+                use_speaker_boost=True,
+            )
+        )
+        
+        # Save the audio to a file
+        with open(output_file, "wb") as f:
+            for chunk in response:
+                if chunk:
+                    f.write(chunk)
+        
+        # Get audio duration using moviepy
+        audio_clip = AudioFileClip(output_file)
+        duration = audio_clip.duration
+        audio_clip.close()
+        
+        return duration
+    except Exception as e:
+        print(f"Error generating narration: {e}")
+        return 3.0  # Default duration if narration fails
+
+def convert_to_natural_speech(text: str) -> str:
+    """Convert technical text to more natural speech by only replacing technical symbols."""
+    system_message = SystemMessage(content="""You are a technical text converter that ONLY replaces technical symbols and notation with their natural language equivalents.
+
+STRICT RULES:
+1. ONLY replace the following with natural language:
+   - Array indices: array[0] -> "the first element"
+   - Variable names: curr_node -> "current node"
+   - Technical symbols: -> with "points to", == with "equals"
+   - Data structure notation: {1,2} -> "the set containing 1 and 2"
+2. DO NOT:
+   - Add any new information
+   - Change the structure of sentences
+   - Add transitions or flow
+   - Make it more conversational
+   - Modify any other parts of the text
+3. Keep the exact same meaning and flow as the original
+4. If unsure about whether to modify something, leave it unchanged""")
+    
+    prompt = PromptTemplate.from_template("""Replace ONLY technical symbols and notation in this text with their natural language equivalents.
+DO NOT make any other changes to the text. Keep everything else exactly the same.
+
+Text: {text}
+
+Return the text with ONLY technical symbols replaced. Place the output in <output> tags.""")
+
+    message = chat_model.invoke([
+        system_message,
+        HumanMessage(content=prompt.format(text=text))
+    ])
+    
+    # Extract content between <output> tags
+    content = message.content
+    start_tag = "<output>"
+    end_tag = "</output>"
+    
+    if start_tag in content and end_tag in content:
+        start_idx = content.find(start_tag) + len(start_tag)
+        end_idx = content.find(end_tag)
+        return content[start_idx:end_idx].strip()
+    
+    return content  # Fallback to original content if tags not found
+
 def process_leetcode_solution(solution_code: str, output_file: str = "animation.mp4") -> None:
     print("\n=== Step 1: Analyzing Solution ===")
     data_structures, initial_data, description = analyze_solution(solution_code)
     print(f"Data Structures: {data_structures}")
     print(f"Initial Data: {initial_data}")
     print(f"Description: {description}")
-    
-    # print("\n=== Step 2: Generating Intuition Frames ===")
-    # intuition_frames = generate_intuition_frames(solution_code, description)
-    # print(f"Generated {len(intuition_frames)} intuition frames")
-    
-    # print("\n=== Step 3: Creating Intuition Video ===")
-    config = VisualizerConfig()
-    # visualizer = SimpleVisualizer(config)
-    # visualizer.visualize_frames(intuition_frames, "intuition.mp4")
     
     print("\n=== Step 4: Generating Walkthrough Script ===")
     walkthrough_script = generate_walkthrough_script(solution_code, description)
@@ -403,6 +476,60 @@ def process_leetcode_solution(solution_code: str, output_file: str = "animation.
     print(f"Generated {len(walkthrough_frames)} walkthrough frames")
     
     print("\n=== Step 6: Creating Walkthrough Video ===")
+    config = VisualizerConfig()
     visualizer = SimpleVisualizer(config)
-    visualizer.visualize_frames(walkthrough_frames, output_file)
-    print(f"Visualization saved to {output_file}") 
+    
+    # Step 1: Generate all narrations first and get their durations
+    print("Generating narrations...")
+    frame_durations = []  # Store durations for all frames, including those without narration
+    audio_files = []
+    current_time = 0
+    
+    for i, frame in enumerate(walkthrough_frames):
+        if frame.text:
+            # Only replace technical symbols with natural language
+            natural_text = convert_to_natural_speech(frame.text)
+            audio_file = f"narration_{i}.mp3"
+            duration = generate_narration(natural_text, audio_file)
+            audio_files.append((audio_file, current_time))  # Store start time with file
+            frame_durations.append(duration)
+            current_time += duration
+        else:
+            # For frames without narration, use a default duration
+            frame_durations.append(2.0)  # 2 seconds default
+            current_time += 2.0
+    
+    # Step 2: Update frame durations to match narration
+    print("Updating frame durations...")
+    for frame, duration in zip(walkthrough_frames, frame_durations):
+        frame.duration = f"{duration}s"
+    
+    # Step 3: Create video with correct frame durations
+    print("Creating video frames...")
+    temp_video_file = "temp_" + output_file
+    visualizer.visualize_frames(walkthrough_frames, temp_video_file)
+    
+    # Step 4: Add narrations to video at correct timestamps
+    print("Adding narration...")
+    video = VideoFileClip(temp_video_file)
+    audio_clips = []
+    
+    for audio_file, start_time in audio_files:
+        audio_clip = AudioFileClip(audio_file)
+        audio_clip = audio_clip.with_start(start_time)
+        audio_clips.append(audio_clip)
+        # Clean up temp audio file
+        os.remove(audio_file)
+    
+    # Combine video with all audio clips
+    if audio_clips:
+        final_audio = CompositeAudioClip(audio_clips)
+        final_video = video.with_audio(final_audio)
+        final_video.write_videofile(output_file, codec='libx264', audio_codec='aac')
+    else:
+        video.write_videofile(output_file, codec='libx264')
+    
+    # Clean up
+    video.close()
+    os.remove(temp_video_file)
+    print(f"Visualization with narration saved to {output_file}") 

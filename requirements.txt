@@ -1,4 +1,6 @@
+langchain-anthropic
+python-dotenv
 pygame
 opencv-python
-anthropic
-python-dotenv
+elevenlabs
+moviepy
