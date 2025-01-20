@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage, SystemMessage
-from simple_visualizer import SimpleVisualizer, VisualizerConfig
+from instagram_visualizer import SimpleVisualizer, VisualizerConfig
 from frame import Frame, DataStructure
 from data_structures import Node, TreeNode
 from data_structure_examples import get_data_structure_examples, get_available_data_structures
@@ -388,7 +388,7 @@ def generate_narration(text: str, output_file: str = "narration.mp3") -> float:
     try:
         # Convert text to speech using the new API pattern
         response = client.text_to_speech.convert(
-            voice_id="pNInz6obpgDQGcFmaJgB",  # Using Adam voice
+            voice_id="UwBdBmK92o3nJ9khXZEa",  # Using Adam voice
             output_format="mp3_22050_32",
             text=text,
             model_id="eleven_turbo_v2_5",  # Using turbo model for low latency

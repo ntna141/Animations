@@ -1,29 +1,26 @@
 from leetcode_visualizer import process_leetcode_solution
 
 solution = """
+# Definition for a binary tree node.
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
 class Solution:
-    def trap(self, height: List[int]) -> int:
-        total = 0  # Initialize total water trapped
-        l, r = 0, len(height) - 1  # Two pointers, left (l) and right (r)
-        lmax, rmax = 0, height[r]  # Initialize max heights for left and right
-        
-        while l < r:
-            if height[l] <= height[r]:
-                # If left height is less than or equal to right height
-                if height[l] < lmax:
-                    total += lmax - height[l]  # Water trapped on the left
-                else:
-                    lmax = height[l]  # Update left max height
-                l += 1  # Move left pointer
+    def lowestCommonAncestor(self, root: TreeNode, p: TreeNode, q: TreeNode) -> TreeNode:
+        # Traverse the tree
+        while root:
+            # If both p and q are greater than root, move right
+            if p.val > root.val and q.val > root.val:
+                root = root.right
+            # If both p and q are less than root, move left
+            elif p.val < root.val and q.val < root.val:
+                root = root.left
             else:
-                # If right height is less than left height
-                if height[r] < rmax:
-                    total += rmax - height[r]  # Water trapped on the right
-                else:
-                    rmax = height[r]  # Update right max height
-                r -= 1  # Move right pointer
-        
-        return total  # Return total water trapped
+                # We found the split point
+                return root
 """
 
-process_leetcode_solution(solution, "rainwater_trap.mp4") 
+process_leetcode_solution(solution, "lowest_common_ancestor.mp4") 

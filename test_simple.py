@@ -1,4 +1,4 @@
-from simple_visualizer import SimpleVisualizer, VisualizerConfig
+from instagram_visualizer import SimpleVisualizer, VisualizerConfig
 from frame import Frame, DataStructure
 from data_structures import Node
 

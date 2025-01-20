@@ -3,6 +3,7 @@ import cv2
 import os
 import glob
 import math
+import numpy as np
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 from frame import Frame, DataStructure
@@ -35,6 +36,14 @@ class SimpleVisualizer:
         self.screen = pygame.Surface((self.config.width, self.config.height))
         self.font = pygame.font.Font(None, self.config.font_size)
         
+        # Load and process the cat video
+        self.cat_video = cv2.VideoCapture('cat.mp4')
+        self.cat_frame_count = int(self.cat_video.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.cat_current_frame = 0
+        
+        # Define the size for the overlay video (adjust as needed)
+        self.overlay_width = 400  # pixels
+        self.overlay_height = 300  # pixels
         
         os.makedirs("frames", exist_ok=True)
         for f in glob.glob("frames/*.png"):
@@ -42,6 +51,41 @@ class SimpleVisualizer:
             
         self.frame_count = 0
         
+    def process_video_frame(self):
+        """Process a single frame of the cat video, removing green screen"""
+        if self.cat_current_frame >= self.cat_frame_count:
+            self.cat_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            self.cat_current_frame = 0
+            
+        ret, frame = self.cat_video.read()
+        if not ret:
+            return None
+            
+        self.cat_current_frame += 1
+        
+        # Convert BGR to RGB
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        # Resize frame to desired overlay size
+        frame = cv2.resize(frame, (self.overlay_width, self.overlay_height))
+        
+        # More generous green screen values
+        lower_green = np.array([55, 130, 130])  # More specific to bright green
+        upper_green = np.array([65, 255, 255])  # Narrower hue range
+        
+        # Convert frame to HSV color space
+        hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
+        
+        # Create mask
+        mask = cv2.inRange(hsv, lower_green, upper_green)
+        
+        # Replace green areas with white
+        frame[mask > 0] = [255, 255, 255]  # Set green pixels to white
+        
+        # Convert to pygame surface
+        result = np.transpose(frame, (1, 0, 2))
+        return pygame.surfarray.make_surface(result)
+
     def draw_element(self, value: Any, x: int, y: int, highlighted: bool = False) -> pygame.Rect:
         """Draw a single element (box with value)"""
         # For dictionary entries or set elements, draw as a simple text row
@@ -183,12 +227,12 @@ class SimpleVisualizer:
     def draw_labels(self, rect: pygame.Rect, labels: List[str]):
         """Draw labels below an element"""
         y = rect.bottom + 5
-        for label in labels:
-            text_surface = self.font.render(label, True, self.config.label_color)
-            text_rect = text_surface.get_rect(centerx=rect.centerx, top=y)
-            self.screen.blit(text_surface, text_rect)
-            y += text_rect.height + 2
-            
+        # Join all labels with spaces and render as one line
+        text = " ".join(labels)
+        text_surface = self.font.render(text, True, self.config.label_color)
+        text_rect = text_surface.get_rect(centerx=rect.centerx, top=y)
+        self.screen.blit(text_surface, text_rect)
+        
     def draw_pointers(self, rect: pygame.Rect, pointers: List[str]):
         """Draw pointers above an element"""
         if not pointers:
@@ -575,34 +619,43 @@ class SimpleVisualizer:
             
     def draw_frame(self, frame: Frame):
         """Draw a complete frame with multiple data structures"""
-        
         self.screen.fill(self.config.background_color)
         
-        # Draw variables at the top
-        if frame.variables:
-            self.draw_variables(frame.variables, self.config.height // 8)
+        # Process and draw video overlay
+        video_surface = self.process_video_frame()
+        if video_surface is not None:
+            video_pos = (self.config.width - self.overlay_width - 20, 20)
+            self.screen.blit(video_surface, video_pos)
         
-        # Adjust base_y to account for variables
+        # Draw each structure
         base_y_offset = self.config.height // 4
         if frame.variables:
             base_y_offset += len(frame.variables) * (self.config.font_size + 5)
             
-        # Draw each structure
         for name, structure in frame.structures.items():
             self.draw_structure(structure, base_y_offset)
             base_y_offset += self.config.vertical_spacing
             
-        # Draw frame text at the middle/bottom
+        # Draw frame text
         if frame.text:
-            # Position text in middle (3/4 of height) or bottom (7/8 of height)
-            text_y = int(self.config.height * 0.75)  # Default to middle
+            # Position text higher up (about 2/3 down the screen)
+            text_y = int(self.config.height * 0.65)
             
+            # Draw text first
             text_rect = pygame.Rect(
-                60,  # 60px padding on left
-                text_y - self.config.height//12,  # Center the rect around the y position
-                self.config.width - 120,  # 60px padding on each side
-                self.config.height//6  # Taller rect for wrapped text
+                60,
+                text_y,
+                self.config.width - 120,
+                self.config.height//6
             )
+            
+            # Draw WAGMI gang text above the subtitles with smaller font
+            title_font = pygame.font.Font(None, int(self.config.font_size * 1.2))
+            title_text = "(WAGMI gang: 1/10000)"
+            title_surface = title_font.render(title_text, True, self.config.text_color)
+            title_rect = title_surface.get_rect(centerx=self.config.width//2, bottom=text_y - 10)
+            self.screen.blit(title_surface, title_rect)
+            
             self.drawText(
                 self.screen,
                 frame.text,
@@ -611,7 +664,7 @@ class SimpleVisualizer:
                 self.font,
                 aa=True
             )
-            
+        
         # Save the frame
         pygame.image.save(self.screen, f"frames/frame_{self.frame_count:04d}.png")
         self.frame_count += 1
