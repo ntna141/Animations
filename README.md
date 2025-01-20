@@ -1,6 +1,6 @@
-# Array Visualization
+# Leetcode solution animation creator
 
-A Python tool for visualizing array operations and creating animations.
+Python script to automate video animations for Leetcode solutions. Uses the Anthropic API for Claude and ElevenLabs for voiceovers
 
 ## Setup
 
@@ -26,9 +26,9 @@ pip install -r requirements.txt
 
 ## Usage
 
-Run the example visualization:
+Run the visualization for the problem Jump Game:
 ```bash
-python array.py
+python test_animation.py
 ```
 
-This will create an animation of array operations and save it as `animation.mp4`. 
+This will create an animation of array operations and save it as `jump_game.mp4`. 
