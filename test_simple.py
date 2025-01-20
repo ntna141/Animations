@@ -1,4 +1,4 @@
-from instagram_visualizer import SimpleVisualizer, VisualizerConfig
+from simple_visualizer import SimpleVisualizer, VisualizerConfig
 from frame import Frame, DataStructure
 from data_structures import Node
 
@@ -35,7 +35,7 @@ def test_linked_list_visualization():
     visualizer.visualize_frames(frames, "test_linked_list.mp4")
 
 def test_doubly_linked_list_visualization():
-    config = VisualizerConfig(width=1080, height=1920)
+    config = VisualizerConfig(width=720, height=1920)
     visualizer = SimpleVisualizer(config)
     
     frames = [
@@ -79,7 +79,7 @@ def test_doubly_linked_list_visualization():
     visualizer.visualize_frames(frames, "test_doubly_linked_list.mp4")
 
 def test_set_visualization():
-    config = VisualizerConfig(width=1080, height=1920)
+    config = VisualizerConfig(width=1080, height=720)
     visualizer = SimpleVisualizer(config)
     
     frames = [
@@ -329,6 +329,6 @@ def test_tree_visualization():
 if __name__ == "__main__":
     # test_linked_list_visualization()
     # test_doubly_linked_list_visualization()
-    # test_set_visualization()
+    test_set_visualization()
     # test_dict_visualization()
-    test_tree_visualization() 
+    # test_tree_visualization()

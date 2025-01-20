@@ -3,7 +3,7 @@ import cv2
 import os
 import glob
 import math
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Tuple, Any, Set
 from dataclasses import dataclass
 from frame import Frame, DataStructure
 from data_structures import Node, TreeNode
@@ -12,7 +12,7 @@ from data_structures import Node, TreeNode
 class VisualizerConfig:
     """Configuration for the visualizer"""
     width: int = 1080
-    height: int = 1920
+    height: int = 720
     background_color: Tuple[int, int, int] = (255, 255, 255)
     text_color: Tuple[int, int, int] = (0, 0, 0)
     element_color: Tuple[int, int, int] = (100, 100, 100)
@@ -20,10 +20,12 @@ class VisualizerConfig:
     arrow_color: Tuple[int, int, int] = (0, 100, 200)
     pointer_color: Tuple[int, int, int] = (50, 50, 200)
     label_color: Tuple[int, int, int] = (100, 100, 100)
-    font_size: int = height // 35
-    element_size: int = width // 8
-    element_spacing: int = width // 12  # Increased spacing between elements
-    vertical_spacing: int = height // 8
+    font_size: int = height // 25
+    element_size: int = width // 12
+    element_spacing: int = width // 16
+    vertical_spacing: int = height // 6
+    array_element_size: int = 80  # Fixed size for array elements
+    array_element_spacing: int = 20  # Fixed spacing between array elements
 
 class SimpleVisualizer:
     def __init__(self, config: Optional[VisualizerConfig] = None):
@@ -85,18 +87,18 @@ class SimpleVisualizer:
             
             return rect
         else:
-            # For set elements and other types, draw as simple text
+            # For array elements and other types, draw as boxed elements
             text_surface = self.font.render(str(value), True, self.config.text_color)
-            total_height = text_surface.get_height()
+            rect = pygame.Rect(x, y, self.config.element_size, self.config.element_size)
             
-            # Create a rect for highlighting if needed
-            rect = pygame.Rect(x, y, text_surface.get_width() + 20, total_height + 10)  # Add padding
-            if highlighted:
-                pygame.draw.rect(self.screen, self.config.highlight_color, rect, border_radius=5)
+            # Draw background and border
+            color = self.config.highlight_color if highlighted else (255, 255, 255)
+            pygame.draw.rect(self.screen, color, rect, border_radius=5)
+            pygame.draw.rect(self.screen, (0, 0, 0), rect, border_radius=5, width=2)
             
-            # Draw the text
-            text_y = y + 5  # Add small padding
-            self.screen.blit(text_surface, (x + 10, text_y))
+            # Center the text in the box
+            text_rect = text_surface.get_rect(center=rect.center)
+            self.screen.blit(text_surface, text_rect)
             
             return rect
         
@@ -377,91 +379,23 @@ class SimpleVisualizer:
             self.screen.blit(text_surface, text_rect)
             return []
             
-        # Handle tree structure
-        if structure.type == "tree":
-            root = structure.elements
-            if not root:
-                return []
-                
-            # Calculate width needed for each level
-            width_by_level = self.get_tree_width_by_level(root)
-            max_width = max(width_by_level.values())
-            
-            # Calculate element size similar to array calculation
-            available_width = self.config.width - 120  # Total width minus margins
-            min_spacing = 20  # Minimum spacing between nodes
-            element_size = min(
-                (available_width - (max_width - 1) * min_spacing) // max_width,
-                60  # Maximum size of 60px
-            )
-            
-            # Store original element size
-            original_element_size = self.config.element_size
-            # Temporarily set element size for tree
-            self.config.element_size = element_size
-                
-            # Calculate initial position for root
-            start_x = self.config.width // 2
-            y = self.config.height // 6
-            initial_width = self.config.width // 2.5
-            
-            # Draw tree recursively
-            element_rects = self.draw_tree(
-                root, start_x, y, initial_width,
-                structure.highlighted or [],
-                structure.labels or {},
-                structure.pointers or {}
-            )
-            
-            # Draw any additional arrows between nodes
-            for from_idx, to_idx in structure.arrows or []:
-                if 0 <= from_idx < len(element_rects) and 0 <= to_idx < len(element_rects):
-                    self.draw_arrow(
-                        element_rects[from_idx].center,
-                        element_rects[to_idx].center,
-                        curved=True
-                    )
-                    
-            # Draw any self arrows
-            for idx in structure.self_arrows or []:
-                if 0 <= idx < len(element_rects):
-                    rect = element_rects[idx]
-                    start = (rect.centerx, rect.top - 30)
-                    end = (rect.centerx, rect.top)
-                    self.draw_arrow(start, end, curved=False)
-            
-            # Restore original element size
-            self.config.element_size = original_element_size
-                    
-            return element_rects
-
         # Different spacing for different structure types
-        spacing = 40 if structure.type == "linked_list" else 15  # Fixed 40px spacing for linked lists
-        if structure.type in ["dict", "set"]:
+        if structure.type == "linked_list":
+            spacing = 40  # Fixed 40px spacing for linked lists
+            element_size = 60  # Fixed size for linked list nodes
+        elif structure.type in ["dict", "set"]:
             spacing = 25  # Slightly larger spacing for dictionaries and sets
+            element_size = 60
+        else:
+            # For arrays, use the configured array spacing and size
+            spacing = self.config.array_element_spacing
+            element_size = self.config.array_element_size
             
         num_elements = len(structure.elements)
         
-        # Calculate element size to fit within available width
+        # Calculate total width needed
         available_width = self.config.width - 120  # Total width minus margins
-        
-        # For linked list, dictionary, or set, calculate size for single nodes
-        if structure.type in ["linked_list", "dict", "set"]:
-            element_size = min(
-                (available_width - (num_elements - 1) * spacing) // num_elements,
-                60  # Maximum size of 60px
-            )
-            total_width = num_elements * element_size + (num_elements - 1) * spacing
-            
-            # Add extra space for braces if it's a dictionary or set
-            if structure.type in ["dict", "set"]:
-                total_width += self.config.font_size * 2  # Space for left and right braces
-        else:
-            element_size = min(
-                (available_width - (num_elements - 1) * spacing) // num_elements,
-                60  # Maximum size of 60px
-            )
-            total_width = num_elements * element_size + (num_elements - 1) * spacing
+        total_width = num_elements * element_size + (num_elements - 1) * spacing
         
         # Use position if provided, otherwise center horizontally
         if structure.position:
@@ -578,12 +512,12 @@ class SimpleVisualizer:
         
         self.screen.fill(self.config.background_color)
         
-        # Draw variables at the top
+        # Draw variables closer to top
         if frame.variables:
-            self.draw_variables(frame.variables, self.config.height // 8)
+            self.draw_variables(frame.variables, self.config.height // 12)
         
-        # Adjust base_y to account for variables
-        base_y_offset = self.config.height // 4
+        # Adjust base_y to start structures lower
+        base_y_offset = self.config.height // 3
         if frame.variables:
             base_y_offset += len(frame.variables) * (self.config.font_size + 5)
             
@@ -592,16 +526,16 @@ class SimpleVisualizer:
             self.draw_structure(structure, base_y_offset)
             base_y_offset += self.config.vertical_spacing
             
-        # Draw frame text at the middle/bottom
+        # Draw frame text at the bottom
         if frame.text:
-            # Position text in middle (3/4 of height) or bottom (7/8 of height)
-            text_y = int(self.config.height * 0.75)  # Default to middle
+            # Position text closer to bottom
+            text_y = int(self.config.height * 0.8)  # Moved up from bottom
             
             text_rect = pygame.Rect(
-                60,  # 60px padding on left
-                text_y - self.config.height//12,  # Center the rect around the y position
-                self.config.width - 120,  # 60px padding on each side
-                self.config.height//6  # Taller rect for wrapped text
+                60,
+                text_y - self.config.height//12,
+                self.config.width - 120,
+                self.config.height//6
             )
             self.drawText(
                 self.screen,
@@ -612,7 +546,6 @@ class SimpleVisualizer:
                 aa=True
             )
             
-        # Save the frame
         pygame.image.save(self.screen, f"frames/frame_{self.frame_count:04d}.png")
         self.frame_count += 1
         
@@ -693,3 +626,27 @@ class SimpleVisualizer:
                 self.draw_frame(frame)
                 
         self.create_video(output_file) 
+
+    def visualize_array(self, array: List[Any], title: str = "", highlight_indices: Set[int] = None) -> None:
+        """Visualize an array with boxes and spacing"""
+        if highlight_indices is None:
+            highlight_indices = set()
+            
+        # Calculate total width needed
+        total_width = (len(array) * self.config.array_element_size + 
+                      (len(array) - 1) * self.config.array_element_spacing)
+        
+        # Calculate starting x position to center the array
+        start_x = (self.config.width - total_width) // 2
+        y = self.config.height // 2 - self.config.array_element_size // 2
+        
+        # Draw title
+        if title:
+            title_surface = self.font.render(title, True, self.config.text_color)
+            title_rect = title_surface.get_rect(center=(self.config.width // 2, y - 40))
+            self.screen.blit(title_surface, title_rect)
+        
+        # Draw array elements
+        for i, value in enumerate(array):
+            x = start_x + i * (self.config.array_element_size + self.config.array_element_spacing)
+            self.draw_element(value, x, y, i in highlight_indices) 

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage, SystemMessage
-from instagram_visualizer import SimpleVisualizer, VisualizerConfig
+from simple_visualizer import SimpleVisualizer, VisualizerConfig
 from frame import Frame, DataStructure
 from data_structures import Node, TreeNode
 from data_structure_examples import get_data_structure_examples, get_available_data_structures
