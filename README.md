@@ -2,6 +2,8 @@
 
 Python script to automate video animations for Leetcode solutions. Uses the Anthropic API for Claude and ElevenLabs for voiceovers
 
+- Supports Arrays, Trees, Linkedlist, Dict, and Set
+
 ## Video Demo
 This is a demo for the Jump Game Leetcode question, visualizing a backward loop solution
 
